@@ -12,7 +12,7 @@ with open('test.html', "w") as fp:
 
 # Parsing time
 title_selector = "#main > div:nth-child({}) > div > a > div.egMi0.kCrYT > div > div.j039Wc > h3 > div"
-summary_selector = "#main > div:nth-child({}) > div > a > div.egMi0.kCrYT > div > div.j039Wc > h3 > div"
+summary_selector = "#main > div:nth-child({}) > div > a > div:nth-child(2) > div:nth-child(2) > div > div > div"
 
 #main > div:nth-child(4) > div > a > div.egMi0.kCrYT > div > div.j039Wc > h3 > div
 #main > div:nth-child(5) > div > a > div.egMi0.kCrYT > div > div.j039Wc > h3 > div
