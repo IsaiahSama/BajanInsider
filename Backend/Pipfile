@@ -6,6 +6,7 @@ name = "pypi"
 [packages]
 requests = "*"
 bs4 = "*"
+flask = "*"
 
 [dev-packages]
 
