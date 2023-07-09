@@ -4,7 +4,7 @@ from sqlite3 import connect
 
 class Database:
     """This class is responsible for managing access to the News Database."""
-    def __init__(self, name="BBNews.sqlite3"):
+    def __init__(self, name="BBNews.db"):
         self.name = name
         self.setup()
 
