@@ -3,7 +3,7 @@ from requests import get, post
 from bs4 import BeautifulSoup
 
 # Pre Setup
-URL = "https://www.google.com/search?client=opera-gx&hs=boG&sxsrf=AB5stBin05pDbY87etcAQJXd0ANb4Cme2Q:1688919970786&q=Latest+AND+Barbados+AND+news&tbm=nws&sa=X&ved=2ahUKEwjwmKaXhYKAAxVMhIQIHbH1DOgQ0pQJegQIEhAB&biw=1126&bih=599&dpr=1.65"
+URL = "https://www.google.com/search?sxsrf=AB5stBjILCztpUnyME1oXKPd-e9nC_t3hQ:1689017615618&q=barbados+news&tbm=nws&sa=X&ved=2ahUKEwjw6f338ISAAxWxtDEKHVBwBjMQ0pQJegQIDBAB&cshid=1689017689554091&biw=1652&bih=412&dpr=1.1"
 FLASK_APP_URL = "http://127.0.0.1:5000/"
 
 # Functions
