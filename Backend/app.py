@@ -12,11 +12,27 @@ db.init_app(app)
 
 # Models
 class Entry(db.Model):
+    """Class representing a New Entry"""
     id = db.Column(db.Integer, primary_key=True)
     link = db.Column(db.String, nullable=False)
     source = db.Column(db.String, nullable=False)
     title = db.Column(db.String, nullable=False, unique=True)
     summary = db.Column(db.String, nullable=False)
+
+    def get_as_dict(self):
+        """Returns the entry as a dictionary for API reasons.
+        
+        Returns:
+            dict"""
+        
+        return {
+            "id": self.id,
+            "link": self.link,
+            "source": self.source,
+            "title": self.title,
+            "summary": self.summary
+        }
+
 
 # Creating the database
 with app.app_context():
@@ -47,6 +63,7 @@ def add_entry():
     
 @app.route("/get/entries/all/", methods=["POST"])
 def get_all_entries():
-    entries = db.session.execute(db.Select(Entry))
+    entries = db.session.execute(db.select(Entry)).fetchall()
+    data = [entry[0].get_as_dict() for entry in entries]
 
-    return jsonify(entries)
+    return data
