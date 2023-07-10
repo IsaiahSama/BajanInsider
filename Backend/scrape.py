@@ -1,7 +1,6 @@
 # This file will be responsible for the scraping of the news
 from requests import get, post
 from bs4 import BeautifulSoup
-# from Database import Database
 
 # Pre Setup
 URL = "https://www.google.com/search?client=opera-gx&hs=boG&sxsrf=AB5stBin05pDbY87etcAQJXd0ANb4Cme2Q:1688919970786&q=Latest+AND+Barbados+AND+news&tbm=nws&sa=X&ved=2ahUKEwjwmKaXhYKAAxVMhIQIHbH1DOgQ0pQJegQIEhAB&biw=1126&bih=599&dpr=1.65"
@@ -73,18 +72,8 @@ def main():
     # Get the soup
     soup = get_soup()
 
-    # Get the 10 latest Entries
-    entries = get_entries(soup)
-
-    # Insert Entries into the database
-    """
-        db = Database()
-        db.add_entries(entries)
-    """
-
-    for entry in entries.values():
-        add_entry(entry)
-
+    # Get and add the Entries to the database.
+    [add_entry(entry) for entry in get_entries(soup).values()]
 
 if __name__ == "__main__":
     main()
