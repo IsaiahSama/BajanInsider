@@ -1,8 +1,9 @@
 # This is where the main Flask Backend will live
 
+import sqlalchemy as sql
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
-import sqlalchemy as sql
+from sqlalchemy.exc import IntegrityError
 
 app = Flask(__name__)
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///BBNews.db"
@@ -56,12 +57,16 @@ def add_entry():
         summary=form["SUMMARY"]
     )
 
-    db.session.add(entry)
-    db.session.commit()
+    try:
+        db.session.add(entry)
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return "Stop it... get some help"
 
     return "Pretty sure all went well"
     
-@app.route("/get/entries/all/", methods=["POST"])
+@app.route("/get/entries/all/", methods=["GET"])
 def get_all_entries():
     entries = db.session.execute(db.select(Entry)).fetchall()
     data = [entry[0].get_as_dict() for entry in entries]
