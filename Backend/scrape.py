@@ -65,7 +65,10 @@ def add_entry(entry: dict) -> None:
     
     # print(entry)
     response = post(FLASK_APP_URL + "add/entry/", data=entry)
-    response.raise_for_status()
+    try:
+        response.raise_for_status()
+    except: 
+        pass
     print(response.text)    
 
 def main():
