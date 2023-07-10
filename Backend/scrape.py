@@ -1,10 +1,11 @@
 # This file will be responsible for the scraping of the news
-from requests import get
+from requests import get, post
 from bs4 import BeautifulSoup
-from Database import Database
+# from Database import Database
 
 # Pre Setup
 URL = "https://www.google.com/search?client=opera-gx&hs=boG&sxsrf=AB5stBin05pDbY87etcAQJXd0ANb4Cme2Q:1688919970786&q=Latest+AND+Barbados+AND+news&tbm=nws&sa=X&ved=2ahUKEwjwmKaXhYKAAxVMhIQIHbH1DOgQ0pQJegQIEhAB&biw=1126&bih=599&dpr=1.65"
+FLASK_APP_URL = "http://127.0.0.1:5000/"
 
 # Functions
 
@@ -54,6 +55,20 @@ def get_entries(soup: BeautifulSoup) -> dict:
 
     return entries
 
+def add_entry(entry: dict) -> None:
+    """Will send a request to the flask server to store the entry in the database.
+    
+    Args:
+        entry (dict): A dictionary representing the scraped entry.
+        
+    Returns:
+        None"""
+    
+    # print(entry)
+    response = post(FLASK_APP_URL + "add/entry/", data=entry)
+    response.raise_for_status()
+    print(response.text)    
+
 def main():
     # Get the soup
     soup = get_soup()
@@ -62,8 +77,13 @@ def main():
     entries = get_entries(soup)
 
     # Insert Entries into the database
-    db = Database()
-    db.add_entries(entries)
+    """
+        db = Database()
+        db.add_entries(entries)
+    """
+
+    for entry in entries.values():
+        add_entry(entry)
 
 
 if __name__ == "__main__":

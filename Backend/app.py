@@ -29,8 +29,8 @@ def hello_world():
     return "<p>Hello Readers!</p>"
 
 ## Database Routing
-@app.route('/add/entries/', methods=["POST"])
-def add_entries():
+@app.route('/add/entry/', methods=["POST"])
+def add_entry():
     form = request.form
     
     entry = Entry(
