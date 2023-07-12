@@ -2,7 +2,21 @@ import "./App.css";
 import Entry from "./Entry";
 import Header from "./Header";
 
+import { useEffect, useState } from "react";
+
 function App() {
+  const [entries, setEntries] = useState([]);
+  const flaskURL = "http://127.0.0.1:5000";
+
+  useEffect(() => {
+    const dataFetch = async () => {
+      // const data = await (await fetch(flaskURL + "/get/15/")).json();
+      const data = await (await fetch("url")).json();
+      setEntries(data);
+    };
+    dataFetch();
+  }, []);
+
   return (
     <div className="App">
       <Header />
