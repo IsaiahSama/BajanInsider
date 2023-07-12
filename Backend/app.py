@@ -3,10 +3,12 @@
 import sqlalchemy as sql
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
+from flask_cors import CORS, cross_origin
 from sqlalchemy.exc import IntegrityError
 
 app = Flask(__name__)
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///BBNews.db"
+CORS(app)
 
 db : sql = SQLAlchemy()
 db.init_app(app)
@@ -70,6 +72,7 @@ def add_entry():
     return "Pretty sure all went well"
     
 @app.route("/get/entries/all/", methods=["GET"])
+@cross_origin(allow_headers=['Content-Type'])
 def get_all_entries():
     entries = db.session.execute(db.select(Entry)).fetchall()
     data = [entry[0].get_as_dict() for entry in entries]
@@ -77,6 +80,7 @@ def get_all_entries():
     return data
 
 @app.route("/get/entries/<int:amount>/")
+@cross_origin(allow_headers=['Content-Type'])
 def get_entries(amount):
     entries = db.session.execute(db.select(Entry).limit(amount)).fetchall()
     data = [entry[0].get_as_dict() for entry in entries]

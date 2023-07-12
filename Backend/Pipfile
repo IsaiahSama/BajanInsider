@@ -8,6 +8,7 @@ requests = "*"
 bs4 = "*"
 flask = "*"
 flask-sqlalchemy = "*"
+flask-cors = "*"
 
 [dev-packages]
 
