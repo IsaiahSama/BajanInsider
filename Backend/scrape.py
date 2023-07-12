@@ -1,6 +1,7 @@
 # This file will be responsible for the scraping of the news
 from requests import get, post
 from bs4 import BeautifulSoup
+from datetime import datetime
 
 # Pre Setup
 URL = "https://www.google.com/search?sxsrf=AB5stBjILCztpUnyME1oXKPd-e9nC_t3hQ:1689017615618&q=barbados+news&tbm=nws&sa=X&ved=2ahUKEwjw6f338ISAAxWxtDEKHVBwBjMQ0pQJegQIDBAB&cshid=1689017689554091&biw=1652&bih=412&dpr=1.1"
@@ -47,7 +48,8 @@ def get_entries(soup: BeautifulSoup) -> dict:
             "LINK": soup.css.select_one(link_selector.format(index)).get("href").split("?q=")[1].split("&sa")[0],
             "SOURCE": soup.css.select_one(source_selector.format(index)).text,
             "TITLE": soup.css.select_one(title_selector.format(index)).text,
-            "SUMMARY":soup.css.select_one(summary_selector.format(index)).text
+            "SUMMARY":soup.css.select_one(summary_selector.format(index)).text,
+            "DATE_SCRAPED": datetime.now().strftime("%d/%m/%Y")
         }
         
         entries[i] = entry 

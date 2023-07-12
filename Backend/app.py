@@ -19,6 +19,7 @@ class Entry(db.Model):
     source = db.Column(db.String, nullable=False)
     title = db.Column(db.String, nullable=False, unique=True)
     summary = db.Column(db.String, nullable=False)
+    date_scraped = db.Column(db.String, nullable=False)
 
     def get_as_dict(self):
         """Returns the entry as a dictionary for API reasons.
@@ -31,7 +32,8 @@ class Entry(db.Model):
             "link": self.link,
             "source": self.source,
             "title": self.title,
-            "summary": self.summary
+            "summary": self.summary,
+            "date_scraped": self.date_scraped
         }
 
 
@@ -54,7 +56,8 @@ def add_entry():
         link=form['LINK'],
         source=form["SOURCE"],
         title=form["TITLE"],
-        summary=form["SUMMARY"]
+        summary=form["SUMMARY"],
+        date_scraped=form["DATE_SCRAPED"]
     )
 
     try:
