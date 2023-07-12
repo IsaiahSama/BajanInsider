@@ -1,0 +1,24 @@
+* {
+  font-size: small;
+}
+
+.Entry {
+  margin: 1em;
+  background-color: #f9f9f9;
+  border: 1px solid lightgray;
+  border-radius: 5px;
+  padding: 10px;
+  box-shadow: 4px 3px 2px 1px rgba(0, 0, 0, 0.2);
+  max-width: 70%;
+}
+
+.Entry_summary {
+  margin-top: 1em;
+  margin-bottom: 1em;
+  text-indent: 10px;
+}
+
+.Entry_footerContainer {
+  display: flex;
+  justify-content: space-between;
+}
