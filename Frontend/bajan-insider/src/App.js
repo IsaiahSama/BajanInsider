@@ -1,9 +1,12 @@
 import "./App.css";
 import Entry from "./Entry";
+import Header from "./Header";
 
 function App() {
   return (
     <div className="App">
+      <Header />
+      <hr />
       <div className="App_entries">
         <Entry
           title="Barbados end CAC Games with nine medals"
