@@ -76,7 +76,7 @@ def get_all_entries():
 
     return data
 
-@app.route("/get/entries/<int:amount>")
+@app.route("/get/entries/<int:amount>/")
 def get_entries(amount):
     entries = db.session.execute(db.select(Entry).limit(amount)).fetchall()
     data = [entry[0].get_as_dict() for entry in entries]
