@@ -1,5 +1,4 @@
-.App_entries {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+.App {
+  background-color: #33333364;
+  min-height: 100vh;
 }
