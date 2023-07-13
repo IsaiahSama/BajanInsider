@@ -83,6 +83,17 @@ def get_all_entries():
 @cross_origin(allow_headers=['Content-Type'])
 def get_entries(amount):
     entries = db.session.execute(db.select(Entry).limit(amount)).fetchall()
-    data = [entry[0].get_as_dict() for entry in entries]
+    data = [entry[0].get_as_dict() for entry in entries][::-1]
 
+    return data
+
+@app.route("/get/entries/<string:query>/")
+@cross_origin(allow_headers=["Content-Type"])
+def get_entries_by_query(query):
+    entries = db.session.execute(
+        db.select(Entry).filter(Entry.title.ilike("%"+query+"%")),
+    )
+
+    data = [entry[0].get_as_dict() for entry in entries][::-1]
+    
     return data
