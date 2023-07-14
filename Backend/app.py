@@ -1,6 +1,7 @@
 # This is where the main Flask Backend will live
 
 import sqlalchemy as sql
+from sqlalchemy import desc
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS, cross_origin
@@ -74,7 +75,7 @@ def add_entry():
 @app.route("/get/entries/all/", methods=["GET"])
 @cross_origin(allow_headers=['Content-Type'])
 def get_all_entries():
-    entries = db.session.execute(db.select(Entry)).fetchall()
+    entries = db.session.execute(db.select(Entry).order_by(desc(Entry.id))).fetchall()
     data = [entry[0].get_as_dict() for entry in entries]
 
     return data
@@ -82,8 +83,8 @@ def get_all_entries():
 @app.route("/get/entries/<int:amount>/")
 @cross_origin(allow_headers=['Content-Type'])
 def get_entries(amount):
-    entries = db.session.execute(db.select(Entry).limit(amount)).fetchall()
-    data = [entry[0].get_as_dict() for entry in entries][::-1]
+    entries = db.session.execute(db.select(Entry).order_by(desc(Entry.id)).limit(amount)).fetchall()
+    data = [entry[0].get_as_dict() for entry in entries]
 
     return data
 
@@ -91,9 +92,9 @@ def get_entries(amount):
 @cross_origin(allow_headers=["Content-Type"])
 def get_entries_by_query(query):
     entries = db.session.execute(
-        db.select(Entry).filter(Entry.title.ilike("%"+query+"%")),
+        db.select(Entry).order_by(desc(Entry.id)).filter(Entry.title.ilike("%"+query+"%")),
     )
 
-    data = [entry[0].get_as_dict() for entry in entries][::-1]
+    data = [entry[0].get_as_dict() for entry in entries]
     
     return data
