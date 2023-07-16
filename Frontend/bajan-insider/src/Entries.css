@@ -2,14 +2,13 @@
   margin-top: 1em;
 }
 
-.Entries_searchBar {
+/* .Entries_searchBar {
   display: flex;
   justify-content: center;
-}
+} */
 
 .Entries_searchBar > input {
-  max-height: 10px;
-  margin-left: 1em;
+  border-radius: 12px;
 }
 
 .Entries_container {

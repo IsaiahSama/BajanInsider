@@ -32,11 +32,12 @@ const Entries = () => {
 
   return (
     <div className="Entries">
-      <div className="Entries_searchBar">
-        <p>Search bajan news here</p>
+      <div className="Entries_searchBar level level-right">
+        <p className="mr-2">Search bajan news here: </p>
         <input value={param} onChange={(e) => modifyParam(e.target.value)} />
       </div>
-      <div className="Entries_container">
+      <h1>Latest News:</h1>
+      <div className="Entries_container container">
         {/* <Entry
           key={1}
           title="Barbados end CAC Games with nine medals"
