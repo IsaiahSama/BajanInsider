@@ -7,6 +7,7 @@ from time import sleep
 # Pre Setup
 URL = "https://www.google.com/search?sxsrf=AB5stBjILCztpUnyME1oXKPd-e9nC_t3hQ:1689017615618&q=barbados+news&tbm=nws&sa=X&ved=2ahUKEwjw6f338ISAAxWxtDEKHVBwBjMQ0pQJegQIDBAB&cshid=1689017689554091&biw=1652&bih=412&dpr=1.1"
 FLASK_APP_URL = "https://bajan-insider-service.vercel.app"
+# FLASK_APP_URL = "http://127.0.0.1:5000"
 
 # Functions
 
