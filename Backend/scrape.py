@@ -2,10 +2,11 @@
 from requests import get, post
 from bs4 import BeautifulSoup
 from datetime import datetime
+from time import sleep
 
 # Pre Setup
 URL = "https://www.google.com/search?sxsrf=AB5stBjILCztpUnyME1oXKPd-e9nC_t3hQ:1689017615618&q=barbados+news&tbm=nws&sa=X&ved=2ahUKEwjw6f338ISAAxWxtDEKHVBwBjMQ0pQJegQIDBAB&cshid=1689017689554091&biw=1652&bih=412&dpr=1.1"
-FLASK_APP_URL = "http://127.0.0.1:5000/"
+FLASK_APP_URL = "https://bajan-insider-service.vercel.app"
 
 # Functions
 
@@ -73,7 +74,8 @@ def add_entry(entry: dict) -> None:
         pass
     print(response.text)    
 
-def main():
+def update_entries():
+    sleep(15) # Just long enough for the server to actually start
     # Get the soup
     soup = get_soup()
 
@@ -81,4 +83,4 @@ def main():
     [add_entry(entry) for entry in get_entries(soup).values()]
 
 if __name__ == "__main__":
-    main()
+    update_entries()

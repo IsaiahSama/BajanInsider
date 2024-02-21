@@ -6,6 +6,9 @@ from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS, cross_origin
 from sqlalchemy.exc import IntegrityError
+from apscheduler.schedulers.background import BackgroundScheduler
+from scrape import update_entries
+import atexit
 
 app = Flask(__name__)
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///BBNews.db"
@@ -99,5 +102,10 @@ def get_entries_by_query(query):
     
     return data
 
+
 if __name__ == "__main__":
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(func=update_entries, trigger="interval", seconds=86400)
+    scheduler.start()
+    atexit.register(lambda: scheduler.shutdown())
     app.run()
