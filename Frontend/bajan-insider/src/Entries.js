@@ -6,7 +6,7 @@ const Entries = () => {
   const [param, setParam] = useState("");
   const [entries, setEntries] = useState([]);
 
-  const flaskURL = "http://127.0.0.1:5000";
+  const flaskURL = "https://bajan-insider-service.vercel.app";
 
   useEffect(() => {
     const dataFetch = async () => {
