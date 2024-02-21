@@ -67,7 +67,7 @@ def add_entry(entry: dict) -> None:
         None"""
     
     # print(entry)
-    response = post(FLASK_APP_URL + "add/entry/", data=entry)
+    response = post(FLASK_APP_URL + "/add/entry/", data=entry)
     try:
         response.raise_for_status()
     except: 
