@@ -98,3 +98,6 @@ def get_entries_by_query(query):
     data = [entry[0].get_as_dict() for entry in entries]
     
     return data
+
+if __name__ == "__main__":
+    app.run()
