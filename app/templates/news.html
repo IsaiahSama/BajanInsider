@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% block title %}
+Reading Article
+{% endblock %}
+
+{% block content %}
+
+{% if entry %}
+
+{{ entry }}
+
+{% else %}
+
+<h3 class="content has-text-danger">There's no article here to see. Return <a href="/">home</a>.</h3>
+
+{% endif %}
+
+{% endblock %}
