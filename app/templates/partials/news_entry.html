@@ -1,0 +1,16 @@
+{% block title %}
+
+{{ title }}
+
+{% endblock %}
+
+<div class="is-flex is-justify-content-space-between is-align-content-center">
+	<h2 class="subtitle">{{ title }}</h2>
+	<span class="content">Sourced from: <a href="{{ link }}"> {{ source }}</a> </span>
+</div>
+
+{{ content }}
+
+<div class="is-fullwidth is-flex is-justify-content-space-around">
+	Scraped on {{ date }}
+</div>

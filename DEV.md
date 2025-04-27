@@ -39,9 +39,11 @@ These components are:
 
 This component will be the main one, and represents a news entry as scraped from it's source. It will be made up of the following attributes:
 
+    - ID (An ID to use to uniquely identify)
     - Title (The title of the story)
-    - Summary (The summary of the story.)
+    - Content (The story as scraped)
     - Source (The name of the source)
+    - DateScraped (The date that the entry was scraped)
     - Link (to the source)
 
 #### NewsEntryPartial
