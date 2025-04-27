@@ -2,7 +2,8 @@
 
 from datetime import datetime
 from typing import override
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
+from bs4.element import PageElement
 
 
 class PageParser:
@@ -32,33 +33,60 @@ class GoogleNewsParser(PageParser):
         entries: list[dict[str, str]] = []
         # Meta Information
 
-        # CSS Selector Pattern
+        # Containers with news have the CSS selector of:
+        # #main > div > div > a
 
-        # rso > div > div > div:nth-child(1) > div > div > a > div > div.SoAPf
-        # rso > div > div > div:nth-child(2) > div > div > a > div > div.SoAPf
-        # rso > div > div > div:nth-child(3) > div > div > a > div > div.SoAPf
+        news_container_selector = "#main > div > div > a"  # This gets 10 entries.
 
-        link_selector_base = "# rso > div > div > div:nth-child({}) > div > div > a"
+        news_containers: list[Tag] = soup.select(news_container_selector)
 
-        base_selector = "> div > div.SoAPf > "
+        for news_container in news_containers:
+            a: Tag = news_container
+            link: str = (
+                a["href"].split("?")[1].lstrip("q=")
+            )  # href link is in format of: '/url?q=https://someurl'
 
-        index = 1
-        title_selector_base = "div.n0jPhd.ynAwRc.MBeuO.nDgy9d"
-        source_name_selector_base = "div:nth-child(1) > div.MgUUmf.NUnG9d > span"
-        content_selector_base = "div.GI74Re.nDgy9d"
+            # Each container is split into two divs.
+            inner_containers: list[Tag] = [
+                child for child in news_container.contents if isinstance(child, Tag)
+            ]
 
-        for _ in range(n):
-            link_selector = link_selector_base.format(index)
-            root_selector = link_selector + base_selector
-            title_selector = root_selector + title_selector_base
-            source_name_selector = root_selector + source_name_selector_base
-            content_selector = root_selector + content_selector_base
+            if not inner_containers:
+                continue
 
-            title = soup.css.select_one(title_selector).text
-            content = soup.css.select_one(content_selector).text
-            source = soup.css.select_one(source_name_selector).text
-            link = soup.css.select_one(link_selector).text
-            date_scraped = datetime.now()
+            # The first container contains the header information
+            header_container: PageElement = inner_containers[0]
+
+            # such as the title
+            title_tag: Tag | None = header_container.select_one("div h3 div")
+            title: str = title_tag.text if title_tag else "Unknown Title"
+
+            # and source name
+            source_tag: Tag | None = header_container.select("div > div")[-1]
+            source: str = source_tag.text if source_tag else "Unknown Source"
+
+            # The second container contains the body information
+            body_container: PageElement = inner_containers[1]
+            # such as the image, content, and date posted
+            # Out of this, only the content is of relevance.
+
+            # It is nested quite a bit, so will have to do some mining
+            # There's only one nested span tag in here, containing text like "3 days ago"
+            # We can get that, and then find the parent.
+
+            span_tag: Tag = body_container.select_one("div span")
+            # The parent of this span tag will be a div container with the content
+
+            content_tag = span_tag.find_parent()
+
+            # Now we need to remove the span tag from the text.
+            content_tag.span.extract()
+
+            # Finally, we can get the content by getting this text.
+
+            content: str = content_tag.text
+
+            date_scraped = datetime.now().strftime("%Y-%m-%d")
 
             entry = {
                 "title": title,
@@ -68,10 +96,7 @@ class GoogleNewsParser(PageParser):
                 "dateScraped": date_scraped,
             }
 
-            index += 1
             entries.append(entry)
-
-        # Data Filtering
 
         # Return
         return entries
