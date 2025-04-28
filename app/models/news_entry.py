@@ -1,6 +1,6 @@
 from typing import Annotated
+
 from pydantic import BaseModel, BeforeValidator, Field
-from pydantic.config import ConfigDict
 
 PyObjectId = Annotated[str, BeforeValidator(str)]
 
@@ -11,10 +11,12 @@ class NewsEntry(BaseModel):
     """
 
     id: PyObjectId | None = Field(alias="_id", default=None)
-    title: str = Field(...)
-    content: str = Field(...)
-    source: str = Field(...)
-    link: str = Field(...)
-    date_scraped: str = Field(...)
+    title: str
+    content: str
+    source: str
+    link: str
+    date_scraped: str
 
-    model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True)
+    class Config:
+        populate_by_name: bool = True
+        arbitrary_types_allowed: bool = True

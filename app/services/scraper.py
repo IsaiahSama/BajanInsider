@@ -2,7 +2,7 @@
 
 This has been repurposed from the original"""
 
-from requests import get, post
+from requests import get
 from bs4 import BeautifulSoup
 
 from app.models.news_collection import NewsCollection

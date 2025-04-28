@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import override
+from typing import cast, override
 from bs4 import BeautifulSoup, Tag
 from bs4.element import PageElement
 
@@ -25,8 +25,7 @@ class PageParser(ABC):
         Returns:
             dict: A mapping of the entires following the stated format.
         """
-
-        pass
+        raise NotImplementedError
 
 
 class GoogleNewsParser(PageParser):
@@ -47,6 +46,7 @@ class GoogleNewsParser(PageParser):
 
         for news_container in news_containers:
             a: Tag = news_container
+
             link: str = (
                 a["href"].split("?")[1].lstrip("q=")
             )  # href link is in format of: '/url?q=https://someurl'
@@ -67,11 +67,11 @@ class GoogleNewsParser(PageParser):
 
             # such as the title
             title_tag: Tag | None = header_container.select_one("div h3 div")
-            title: str = title_tag.text if title_tag else "Unknown Title"
+            title: str = cast(str, title_tag.text) if title_tag else "Unknown Title"
 
             # and source name
             source_tag: Tag | None = header_container.select("div > div")[-1]
-            source: str = source_tag.text if source_tag else "Unknown Source"
+            source: str = cast(str, source_tag.text) if source_tag else "Unknown Source"
 
             # The second container contains the body information
             body_container: PageElement = inner_containers[1]
@@ -82,17 +82,22 @@ class GoogleNewsParser(PageParser):
             # There's only one nested span tag in here, containing text like "3 days ago"
             # We can get that, and then find the parent.
 
-            span_tag: Tag = body_container.select_one("div span")
+            span_tag: Tag | None = body_container.select_one("div span")
             # The parent of this span tag will be a div container with the content
+
+            if not span_tag:
+                continue
 
             content_tag = span_tag.find_parent()
 
             # Now we need to remove the span tag from the text.
-            content_tag.span.extract()
+
+            if content_tag and isinstance(content_tag, Tag) and content_tag.span:
+                _ = content_tag.span.extract()
 
             # Finally, we can get the content by getting this text.
 
-            content: str = content_tag.text
+            content: str = cast(str, content_tag.text) if content_tag else ""
 
             date_scraped = datetime.now().strftime("%Y-%m-%d")
 

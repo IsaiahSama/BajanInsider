@@ -1,5 +1,5 @@
 from os import getenv
-from typing import Any, override
+from typing import Any, cast, override
 
 from bson.objectid import ObjectId
 from motor.motor_asyncio import (
@@ -47,7 +47,7 @@ class MongoClient(DBClient):
             news_entry.model_dump(by_alias=True, exclude={"id"})
         )
 
-        created_entry = await self.get_entry(new_entry.inserted_id)
+        created_entry = await self.get_entry(cast(new_entry.inserted_id, ObjectId))
 
         return created_entry
 
