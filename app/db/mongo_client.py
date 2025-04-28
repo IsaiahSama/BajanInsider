@@ -49,11 +49,15 @@ class MongoClient(DBClient):
         raise NotImplementedError
 
     @override
-    async def get_entry(self, entry_id: str) -> NewsEntry:
+    async def get_entry(self, entry_id: str) -> NewsEntry | None:
         raise NotImplementedError
 
     @override
-    async def get_all_entries(self) -> NewsCollection:
+    async def find_entry(self, query: dict[str, str]) -> NewsCollection | None:
+        raise NotImplementedError
+
+    @override
+    async def get_all_entries(self) -> NewsCollection | None:
         raise NotImplementedError
 
     @override
