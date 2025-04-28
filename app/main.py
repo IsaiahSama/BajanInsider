@@ -51,9 +51,7 @@ async def get_entries(request: Request):
 
     if news_collection:
         for entry in news_collection.entries:
-            rendered_entries.append(
-                render_partial("news_partial_entry", {"entry": entry})
-            )
+            rendered_entries.append(render_partial("news_entry", {"entry": entry}))
 
     return templates.TemplateResponse(
         request,

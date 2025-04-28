@@ -1,16 +1,18 @@
-{% block title %}
-
-{{ entry.title }}
-
-{% endblock %}
-
-<div class="is-flex is-justify-content-space-between is-align-content-center">
-	<h2 class="subtitle">{{ entry.title }}</h2>
-	<span class="content">Sourced from: <a href="{{ entry.link }}"> {{ entry.source }}</a> </span>
-</div>
-
-{{ entry.content }}
-
-<div class="is-fullwidth is-flex is-justify-content-space-around">
-	Scraped on {{ entry.date_scraped }}
+<div class="card">
+	<header class="card-header">
+		<p class="card-header-title"> {{ entry.title }} </p>
+	</header>
+	<div class="card-content">
+		<div class="content">
+			{{ entry.content }}
+		</div>
+		<div class="content">
+			Date Scraped: {{ entry.date_scraped }}
+		</div>
+	</div>
+	<footer class="card-footer">
+		<div class="card-footer-item">
+			Visit&nbsp<a href="{{ entry.link }}">{{ entry.source }}</a> &nbspto read more!
+		</div>
+	</footer>
 </div>
