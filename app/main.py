@@ -1,7 +1,9 @@
-from fastapi import FastAPI, Request
+from typing import Annotated
+from fastapi import FastAPI, Form, Request
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from jinja2 import Template
+from pydantic import BaseModel
 
 from app.db.mongo_client import MongoClient
 from app.models.news_collection import NewsCollection
@@ -58,3 +60,11 @@ async def get_entries(request: Request):
         "partials/news_entries_list.html",
         context={"entries": rendered_entries},
     )
+
+
+@app.post("/htmx/entries/filter/")
+async def filter_entries(request: Request, search: Annotated[str, Form()]):
+    rendered_entries: list[str] = []
+
+    if not search:
+        return await get_entries(request)
