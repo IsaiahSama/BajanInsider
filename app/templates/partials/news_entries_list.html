@@ -1,0 +1,15 @@
+{% if entries %}
+
+{% for entry in entries %}
+
+{{ entry | safe }}
+
+{% endfor %}
+
+{% else %}
+
+<div class="is-fullwidth is-flex is-justify-content-space-around">
+	<h3 class="content has-text-danger"><i>No News Found</i></h2>
+</div>
+
+{% endif %}
