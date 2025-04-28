@@ -69,14 +69,7 @@ async def filter_entries(request: Request, search: Annotated[str, Form()]):
     if not search:
         return await get_entries(request)
 
-    query = {
-        "$or": [
-            {"title": {"$regex": search, "$options": "i"}},
-            {"content": {"$regex": search, "$options": "i"}},
-        ]
-    }
-
-    filtered_news_collection: NewsCollection | None = await client.find_entry(query)
+    filtered_news_collection: NewsCollection | None = await client.find_entry(search)
 
     if filtered_news_collection:
         for entry in filtered_news_collection.entries:

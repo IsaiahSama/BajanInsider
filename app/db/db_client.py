@@ -61,11 +61,11 @@ class DBClient(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def find_entry(self, query: dict[str, str]) -> NewsCollection | None:
+    async def find_entry(self, search: str) -> NewsCollection | None:
         """Queries the database for all NewsEntry objects matching the query.
 
         Args:
-            query (dict[str, str]): A dictionary with the field names for NewsEntry as a key, and some condition as a value.
+            search (str): A string representing a search term to be found within the title or content.
 
         Returns:
             NewsCollection: The collection if found.

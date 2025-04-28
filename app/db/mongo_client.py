@@ -74,7 +74,14 @@ class MongoClient(DBClient):
         return news_entry
 
     @override
-    async def find_entry(self, query: dict[str, str]) -> NewsCollection | None:
+    async def find_entry(self, search: str) -> NewsCollection | None:
+        query = {
+            "$or": [
+                {"title": {"$regex": search, "$options": "i"}},
+                {"content": {"$regex": search, "$options": "i"}},
+            ]
+        }
+
         cursor = self.news_db.find(query)
         results: list[NewsEntry] = []
 
