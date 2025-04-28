@@ -41,14 +41,12 @@ This component will be the main one, and represents a news entry as scraped from
 
     - ID (An ID to use to uniquely identify)
     - Title (The title of the story)
-    - Content (The story as scraped)
+    - Content (A snippet of the story as scraped)
     - Source (The name of the source)
     - DateScraped (The date that the entry was scraped)
     - Link (to the source)
 
-#### NewsEntryPartial
-
-The NewsEntryPartial is identical to the NewsEntry, the only difference being that the content itself is truncated (simple css overflow).
+This website will only have snippets of the story, so as to not take traffic away from the source sites.
 
 # Ending Notes
 
