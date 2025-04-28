@@ -48,8 +48,8 @@ class GoogleNewsParser(PageParser):
             a: Tag = news_container
 
             link: str = (
-                a["href"].split("?")[1].lstrip("q=")
-            )  # href link is in format of: '/url?q=https://someurl'
+                a["href"].split("?")[1].lstrip("q=").split("&")[0]
+            )  # href link is in format of: '/url?q=https://someurl/&someGoogleParams'
 
             if not isinstance(link, str):
                 link = ""
