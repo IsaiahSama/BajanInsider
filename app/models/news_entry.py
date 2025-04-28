@@ -1,6 +1,6 @@
 from uuid import UUID, uuid4
-from pydantic import BaseModel, EmailStr, Field
-from pydantic.type_adapter import ConfigDict
+from pydantic import BaseModel, Field
+from pydantic.config import ConfigDict
 
 
 class NewsEntry(BaseModel):
