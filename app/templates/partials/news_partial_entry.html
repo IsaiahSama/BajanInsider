@@ -1,19 +1,19 @@
 <div class="card">
 	<header class="card-header">
-		<p class="card-header-title"> {{ title }} </p>
+		<p class="card-header-title"> {{ entry.title }} </p>
 	</header>
 	<div class="card-content">
 		<div class="content">
-			{{ content }}
+			{{ entry.content }}
 		</div>
 		<div class="content">
-			Date Scraped: {{ date }}
+			Date Scraped: {{ entry.date_scraped }}
 		</div>
 	</div>
 	<footer class="card-footer">
 		<div class="card-footer-item">
-			Visit <a href="{{ link }}" class="card-footer-item">{{ source }}</a>
+			Visit <a href="{{ entry.link }}" class="card-footer-item">{{ entry.source }}</a>
 		</div>
-		<a href="/article/{{ id }}" class="card-footer-item">Read more</a>
+		<a href="/article/{{ entry.id }}" class="card-footer-item">Read more</a>
 	</footer>
 </div>
