@@ -23,14 +23,15 @@ class DBClient(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def add_news_entry(self, news_entry: NewsEntry) -> None:
+    async def add_news_entry(self, news_entry: NewsEntry) -> NewsEntry | None:
         """Adds a news entry to the database.
 
         Args:
             news_entry (NewsEntry): The entry to serialize and add to the database
 
         Returns:
-            None
+            NewsEntry: The created NewsEntry
+            None: If insertion failed
         """
         raise NotImplementedError
 
@@ -83,16 +84,20 @@ class DBClient(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def create_last_updated_date(self) -> None:
+    async def create_last_updated_date(self) -> LastUpdated | None:
         """Sets a 'last_updated' date in the database.
         This is used to determine whether or not to run the scraping scripts.
         Scraping should only be run once a day.
         This function is intended to be called if `get_last_updated_date` returns nothing.
+
+        Returns:
+            LastUpdated: The newly created object
+            None: If the insertion operation failed
         """
         raise NotImplementedError
 
     @abstractmethod
-    async def get_last_updated_date(self) -> LastUpdated:
+    async def get_last_updated_date(self) -> LastUpdated | None:
         """Retrieves the LastUpdated date from the database.
         This can be used to determine the last time the scraping was run.
 
