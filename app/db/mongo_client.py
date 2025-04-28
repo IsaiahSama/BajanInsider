@@ -47,7 +47,7 @@ class MongoClient(DBClient):
             news_entry.model_dump(by_alias=True, exclude={"id"})
         )
 
-        created_entry = await self.get_entry(cast(new_entry.inserted_id, ObjectId))
+        created_entry = await self.get_entry(new_entry.inserted_id)
 
         return created_entry
 
