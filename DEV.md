@@ -4,7 +4,7 @@ Update: This project was originally done using React, Flask and SQLite. However,
 
 ## Technologies
 
-Frontend: Alpine, Jinja, HTMX, Bulma CSS
+Frontend: Jinja, HTMX, Bulma CSS
 Server: FastAPI (Python)
 Database: MongoDB
 
