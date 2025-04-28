@@ -1,16 +1,21 @@
 """This will store the base class, and subclasses for Page parsers!"""
 
+from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import override
 from bs4 import BeautifulSoup, Tag
 from bs4.element import PageElement
 
+from app.models.news_collection import NewsCollection
+from app.models.news_entry import NewsEntry
 
-class PageParser:
+
+class PageParser(ABC):
     url: str = ""  # The URL for the page
 
     @staticmethod
-    def parse_entries(soup: BeautifulSoup, n: int) -> list[dict[str, str]] | None:
+    @abstractmethod
+    def parse_entries(soup: BeautifulSoup, n: int) -> NewsCollection | None:
         """This method will obtain news information from it's website.
 
         Args:
@@ -29,8 +34,8 @@ class GoogleNewsParser(PageParser):
 
     @staticmethod
     @override
-    def parse_entries(soup: BeautifulSoup, n: int) -> list[dict[str, str]] | None:
-        entries: list[dict[str, str]] = []
+    def parse_entries(soup: BeautifulSoup, n: int) -> NewsCollection | None:
+        entries: list[NewsEntry] = []
         # Meta Information
 
         # Containers with news have the CSS selector of:
@@ -45,6 +50,9 @@ class GoogleNewsParser(PageParser):
             link: str = (
                 a["href"].split("?")[1].lstrip("q=")
             )  # href link is in format of: '/url?q=https://someurl'
+
+            if not isinstance(link, str):
+                link = ""
 
             # Each container is split into two divs.
             inner_containers: list[Tag] = [
@@ -88,15 +96,16 @@ class GoogleNewsParser(PageParser):
 
             date_scraped = datetime.now().strftime("%Y-%m-%d")
 
-            entry = {
-                "title": title,
-                "content": content,
-                "sourceName": source,
-                "sourceLink": link,
-                "dateScraped": date_scraped,
-            }
+            entry = NewsEntry(
+                title=title,
+                content=content,
+                source=source,
+                link=link,
+                date_scraped=date_scraped,
+            )
 
             entries.append(entry)
 
+        news_collection = NewsCollection(entries=entries)
         # Return
-        return entries
+        return news_collection

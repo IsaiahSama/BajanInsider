@@ -5,6 +5,8 @@ This has been repurposed from the original"""
 from requests import get, post
 from bs4 import BeautifulSoup
 
+from app.models.news_collection import NewsCollection
+
 from .page_parser import PageParser
 
 """
@@ -41,7 +43,7 @@ class Scraper:
     @staticmethod
     def get_news(
         soup: BeautifulSoup, parser: PageParser, amount: int
-    ) -> list[dict[str, str]] | None:
+    ) -> NewsCollection | None:
         """This method will get the news using the given parser.
 
         Args:
