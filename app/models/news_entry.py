@@ -1,6 +1,8 @@
-from uuid import UUID, uuid4
-from pydantic import BaseModel, Field
+from typing import Annotated
+from pydantic import BaseModel, BeforeValidator, Field
 from pydantic.config import ConfigDict
+
+PyObjectId = Annotated[str, BeforeValidator(str)]
 
 
 class NewsEntry(BaseModel):
@@ -8,7 +10,7 @@ class NewsEntry(BaseModel):
     Model representing a news entry.
     """
 
-    id: UUID = Field(alias="_id", default=uuid4())
+    id: PyObjectId | None = Field(alias="_id", default=None)
     title: str = Field(...)
     content: str = Field(...)
     source: str = Field(...)
