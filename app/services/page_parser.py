@@ -11,7 +11,7 @@ from app.models.news_entry import NewsEntry
 
 
 class PageParser(ABC):
-    url: str = ""  # The URL for the page
+    urls: list[str] = []  # The URLs to be used.
 
     @staticmethod
     @abstractmethod
@@ -29,7 +29,7 @@ class PageParser(ABC):
 
 
 class GoogleNewsParser(PageParser):
-    url: str = "https://www.google.com/search?&q=barbados+news&tbm=nws&source=lnms"
+    urls: list[str] = ["https://www.google.com/search?&q=barbados+news&tbm=nws"]
 
     @staticmethod
     @override

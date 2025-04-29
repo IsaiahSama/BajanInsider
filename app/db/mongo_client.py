@@ -42,7 +42,7 @@ class MongoClient(DBClient):
         self.last_updated_db = self.db.get_collection(self.last_updated_table)
 
     async def is_unique_title(self, entry: NewsEntry) -> bool:
-        return bool(await self.news_db.find_one({"title": entry.title}))
+        return not bool(await self.news_db.find_one({"title": entry.title}))
 
     @override
     async def add_news_entry(self, news_entry: NewsEntry) -> NewsEntry | None:
@@ -64,6 +64,9 @@ class MongoClient(DBClient):
             for entry in news_collection.entries
             if await self.is_unique_title(entry)
         ]
+
+        if not entries:
+            return
 
         _ = await self.news_db.insert_many(entries)
 

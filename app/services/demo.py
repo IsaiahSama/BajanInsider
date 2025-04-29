@@ -64,7 +64,9 @@ async def main(entries: NewsCollection):
 
 
 if __name__ == "__main__":
-    url = GoogleNewsParser.url
+    # Demo was made before Scraper was Async.
+    # TODO: Update this!
+    url = GoogleNewsParser.urls[0]
     soup = Scraper.get_soup(url)
     entries = Scraper.get_news(soup, GoogleNewsParser(), 10)
 

@@ -2,8 +2,8 @@
 
 This has been repurposed from the original"""
 
+import aiohttp
 from bs4 import BeautifulSoup
-from requests import get
 
 from app.models.news_collection import NewsCollection
 
@@ -26,7 +26,7 @@ Entry Format:
 
 class Scraper:
     @staticmethod
-    def get_soup(url: str) -> BeautifulSoup:
+    async def get_soup(url: str) -> BeautifulSoup:
         """Retrieves the beautiful Soup from the webpage
 
         Args:
@@ -35,13 +35,14 @@ class Scraper:
         Returns:
             BeautifulSoup: The soup object"""
 
-        page = get(url)
-        page.raise_for_status()
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                html = await response.text()
 
-        return BeautifulSoup(page.text, "html.parser")
+                return BeautifulSoup(html, "html.parser")
 
     @staticmethod
-    def get_news(
+    async def get_news(
         soup: BeautifulSoup, parser: PageParser, amount: int
     ) -> NewsCollection | None:
         """This method will get the news using the given parser.
