@@ -102,6 +102,15 @@ class MongoClient(DBClient):
         return NewsCollection(entries=results) if results else None
 
     @override
+    async def get_entries(
+        self, start: int = 0, limit: int = 50
+    ) -> NewsCollection | None:
+        entries = await self.news_db.find().skip(start).limit(limit).to_list(limit)
+
+        if entries:
+            return NewsCollection(entries=[NewsEntry(**entry) for entry in entries])
+
+    @override
     async def get_all_entries(self) -> NewsCollection | None:
         entries = await self.news_db.find().to_list(1000)
 

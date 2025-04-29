@@ -74,6 +74,19 @@ class DBClient(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    async def get_entries(
+        self, start: int = 0, limit: int = 50
+    ) -> NewsCollection | None:
+        """Queries the database to get `limit` news entries, starting at `start`.
+
+        Returns:
+            NewsCollection: `limit` found entries.
+            None: If no entries were found
+        """
+
+        raise NotImplementedError
+
+    @abstractmethod
     async def get_all_entries(self) -> NewsCollection | None:
         """Queries the database to get all news entries as a collection.
 

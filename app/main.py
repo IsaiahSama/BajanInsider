@@ -11,13 +11,18 @@ app = FastAPI()
 
 templates = Jinja2Templates("templates")
 
+client = MongoClient()
+
 
 @app.get("/")
 async def index(request: Request):
     return templates.TemplateResponse(request, "index.html")
 
 
-client = MongoClient()
+@app.get("/api/entries", response_model=NewsCollection, response_model_by_alias=False)
+async def get_entries(start: int = 0, limit: int = 50):
+    return await client.get_entries(start, limit)
+
 
 # HTMX Routes
 
@@ -42,7 +47,7 @@ def render_partial(partial_name: str, context: dict[str, str | NewsEntry]) -> st
 
 
 @app.get("/htmx/entries")
-async def get_entries(request: Request):
+async def get_entries_htmx(request: Request):
     rendered_entries: list[str] = []
 
     news_collection: NewsCollection | None = await client.get_all_entries()
@@ -59,11 +64,11 @@ async def get_entries(request: Request):
 
 
 @app.post("/htmx/entries/filter/")
-async def filter_entries(request: Request, search: Annotated[str, Form()]):
+async def filter_entries_htmx(request: Request, search: Annotated[str, Form()]):
     rendered_entries: list[str] = []
 
     if not search:
-        return await get_entries(request)
+        return await get_entries_htmx(request)
 
     filtered_news_collection: NewsCollection | None = await client.find_entry(search)
 
