@@ -1,18 +1,20 @@
-<div class="card">
+<div class="card" style="border: 3px solid">
 	<header class="card-header">
-		<p class="card-header-title"> {{ entry.title }} </p>
+		<p class="card-header-title is-size-2-touch"> {{ entry.title }} </p>
 	</header>
 	<div class="card-content">
-		<div class="content">
+		<div class="content is-size-3-touch">
 			{{ entry.content }}
 		</div>
 		<div class="content is-hidden-touch">
 			Date Scraped: {{ entry.date_scraped }}
 		</div>
 	</div>
-	<footer class="card-footer">
-		<div class="card-footer-item">
-			Visit&nbsp<a href="{{ entry.link }}">{{ entry.source }}</a> &nbspto read more!
-		</div>
-	</footer>
+	<a href="{{ entry.link }}">
+		<footer class="card-footer is-size-4-touch">
+			<div class="card-footer-item">
+				Visit {{ entry.source }} to read more!
+			</div>
+		</footer>
+	</a>
 </div>
