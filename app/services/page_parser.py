@@ -29,7 +29,12 @@ class PageParser(ABC):
 
 
 class GoogleNewsParser(PageParser):
-    urls: list[str] = ["https://www.google.com/search?&q=barbados+news&tbm=nws"]
+    urls: list[str] = [
+        "https://www.google.com/search?&q=barbados+news&tbm=nws",
+        "https://www.google.com/search?q=barbados+news&tbm=nws&start=10",
+        "https://www.google.com/search?q=barbados+news&tbm=nws&start=20",
+        "https://www.google.com/search?q=barbados+news&tbm=nws&start=30",
+    ]
 
     @staticmethod
     @override
