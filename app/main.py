@@ -1,6 +1,7 @@
 from typing import Annotated
 from fastapi import FastAPI, Form, Request
 from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
 from jinja2 import Template
 
 from app.db.mongo_client import MongoClient
@@ -8,6 +9,8 @@ from app.models.news_collection import NewsCollection
 from app.models.news_entry import NewsEntry
 
 app = FastAPI()
+
+app.mount("/public", StaticFiles(directory="public"), "public")
 
 templates = Jinja2Templates("templates")
 
