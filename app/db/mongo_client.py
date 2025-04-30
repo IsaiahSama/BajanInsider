@@ -1,3 +1,5 @@
+from pymongo import ASCENDING, DESCENDING
+
 from os import getenv
 from typing import Any, cast, override
 
@@ -95,7 +97,7 @@ class MongoClient(DBClient):
         cursor = self.news_db.find(query)
         results: list[NewsEntry] = []
 
-        for collection in await cursor.to_list(100):
+        for collection in await cursor.sort("date_scraped", DESCENDING).to_list(100):
             if collection:
                 results.append(NewsEntry(**collection))
 
@@ -105,14 +107,22 @@ class MongoClient(DBClient):
     async def get_entries(
         self, start: int = 0, limit: int = 50
     ) -> NewsCollection | None:
-        entries = await self.news_db.find().skip(start).limit(limit).to_list(limit)
+        entries = (
+            await self.news_db.find()
+            .sort("date_scraped", DESCENDING)
+            .skip(start)
+            .limit(limit)
+            .to_list(limit)
+        )
 
         if entries:
             return NewsCollection(entries=[NewsEntry(**entry) for entry in entries])
 
     @override
     async def get_all_entries(self) -> NewsCollection | None:
-        entries = await self.news_db.find().to_list(1000)
+        entries = (
+            await self.news_db.find().sort("date_scraped", DESCENDING).to_list(1000)
+        )
 
         return (
             NewsCollection(entries=[NewsEntry(**entry) for entry in entries])
