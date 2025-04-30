@@ -18,7 +18,7 @@ Home
 
 	<h2 class="subtitle is-hidden-touch">Latest News:</h2>
 	<div class="field">
-		<input id="search" class="input" type="text" name="search" style="border: 2px dashed"
+		<input id="search" class="input is-size-3-touch" type="text" name="search" style="border: 2px dashed"
 			hx-post="/htmx/entries/filter" hx-trigger="input changed delay:500ms" hx-target="#news"
 			placeholder="🔎Search...">
 	</div>
@@ -28,9 +28,9 @@ Home
 	<div class="is-fullwidth is-flex is-justify-content-center has-test-success"><i>Loading...</i></div>
 </section>
 
-<button id="backToTop" onclick="scrollToTop()">
+<button id="backToTop" onclick="scrollToTop()" class="is-size-2-touch">
 	<img src="https://upload.wikimedia.org/wikipedia/commons/e/ef/Flag_of_Barbados.svg" alt="Barbados Flag"
-		style="width: 20px; height: 15px; margin-right: 5px;">
+		style="width: 20px; height: 15px; margin-right: 5px;" class="is-hidden-touch">
 	Back to Top
 </button>
 
