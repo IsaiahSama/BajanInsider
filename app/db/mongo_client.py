@@ -13,7 +13,7 @@ from motor.motor_asyncio import (
 from app.models.last_updated import LastUpdated
 
 from .db_client import DBClient
-from app.models import NewsEntry, NewsCollection
+from app.models import NewsEntry, NewsCollection, Summary
 
 
 class MongoClient(DBClient):
@@ -26,10 +26,12 @@ class MongoClient(DBClient):
     db_name: str = "BajanInsiderMongoDB"
     news_table: str = "news_entry"
     last_updated_table: str = "last_updated"
+    summary_cache_table: str = "summary_cache"
 
     db: AsyncIOMotorDatabase[Any]
     news_db: AsyncIOMotorCollection[dict[str, str]]
     last_updated_db: AsyncIOMotorCollection[dict[str, str]]
+    summary_cache_db: AsyncIOMotorCollection[dict[str, str]]
 
     def __init__(self):
         self.connect()
@@ -42,6 +44,7 @@ class MongoClient(DBClient):
 
         self.news_db = self.db.get_collection(self.news_table)
         self.last_updated_db = self.db.get_collection(self.last_updated_table)
+        self.summary_cache_db = self.db.get_collection(self.summary_cache_table)
 
     async def is_unique_title(self, entry: NewsEntry) -> bool:
         return not bool(await self.news_db.find_one({"title": entry.title}))
@@ -155,5 +158,27 @@ class MongoClient(DBClient):
         _ = await self.last_updated_db.find_one_and_update(
             filter={}, update={"$set": LastUpdated}
         )
+        
+    @override
+    async def get_summary(self, title_hash: str) -> Summary | None:
+        summary = await self.summary_cache_db.find_one({"title_hash": title_hash})
+
+        if not summary:
+            return None
+
+        return Summary(**summary)
+    
+    @override
+    async def add_summary(self, title_hash: str, summary_text: str) -> Summary:
+        existing_summary = await self.get_summary(title_hash)
+
+        if existing_summary:
+            return existing_summary
+
+        new_summary = Summary(title_hash=title_hash, ai_summary=summary_text)
+        _ = await self.summary_cache_db.insert_one(
+            new_summary.model_dump(exclude={"id"})
+        )
+        return new_summary
 
 client = MongoClient()
