@@ -1,11 +1,11 @@
 {% if total_pages > 1 %}
-<div class="flex justify-center items-center space-x-2 mt-8">
+<div class="flex flex-col sm:flex-row justify-center items-center gap-4 sm:gap-2 mt-8 px-4">
     <!-- Previous button -->
     {% if has_prev %}
-    <button class="px-4 py-2 text-sm font-medium text-bajan-blue hover:text-bajan-yellow transition-colors duration-200 flex items-center space-x-1"
+    <button class="w-full sm:w-auto px-6 sm:px-4 py-3 sm:py-2 text-lg sm:text-sm font-medium text-bajan-blue hover:text-bajan-yellow transition-colors duration-200 flex items-center justify-center space-x-2 sm:space-x-1 bg-white/80 backdrop-blur-sm rounded-lg shadow-sm hover:shadow-md"
             hx-get="/htmx/entries?page={{ current_page - 1 }}"
             hx-target="#news">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg class="w-5 h-5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
         </svg>
         <span>Previous</span>
@@ -13,14 +13,14 @@
     {% endif %}
 
     <!-- Page numbers -->
-    <div class="flex items-center space-x-1">
+    <div class="flex items-center gap-2 sm:gap-1">
         {% for p in range(1, total_pages + 1) %}
             {% if p == current_page %}
-                <span class="px-4 py-2 text-sm font-bold bg-bajan-blue text-white rounded-lg">
+                <span class="w-12 sm:w-10 h-12 sm:h-10 flex items-center justify-center text-lg sm:text-base font-bold bg-bajan-blue text-white rounded-lg shadow-sm">
                     {{ p }}
                 </span>
             {% else %}
-                <button class="px-4 py-2 text-sm text-gray-700 hover:text-bajan-blue transition-colors duration-200"
+                <button class="w-12 sm:w-10 h-12 sm:h-10 flex items-center justify-center text-lg sm:text-base text-gray-700 hover:text-bajan-blue transition-colors duration-200 bg-white/80 backdrop-blur-sm rounded-lg hover:shadow-sm"
                         hx-get="/htmx/entries?page={{ p }}"
                         hx-target="#news">
                     {{ p }}
@@ -31,11 +31,11 @@
 
     <!-- Next button -->
     {% if has_next %}
-    <button class="px-4 py-2 text-sm font-medium text-bajan-blue hover:text-bajan-yellow transition-colors duration-200 flex items-center space-x-1"
+    <button class="w-full sm:w-auto px-6 sm:px-4 py-3 sm:py-2 text-lg sm:text-sm font-medium text-bajan-blue hover:text-bajan-yellow transition-colors duration-200 flex items-center justify-center space-x-2 sm:space-x-1 bg-white/80 backdrop-blur-sm rounded-lg shadow-sm hover:shadow-md"
             hx-get="/htmx/entries?page={{ current_page + 1 }}"
             hx-target="#news">
         <span>Next</span>
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg class="w-5 h-5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
         </svg>
     </button>
