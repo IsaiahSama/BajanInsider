@@ -24,10 +24,15 @@ async def summarize_latest_news(limit: int = 10) -> str:
     articles = "\n\n".join(f"Title: {article.title}\n Content: {article.content}" for article in latest_articles.entries)
 
     prompt = f"{CONTEXT}\n\nSummarize the following news articles in a few sentences:\n\n{articles}\n\nSummary:"
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=prompt
-    )
+    
+    try:
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt
+        )
+    except Exception as e:
+        print(e)
+        return "Could not generate summary at this time."
     
     if response.text:
         await db_client.add_summary(title_hash, response.text)
