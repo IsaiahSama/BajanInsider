@@ -1,6 +1,8 @@
 from google import genai
 from app.db.mongo_client import client as db_client
 
+from hashlib import sha256
+
 # The client gets the API key from the environment variable `GEMINI_API_KEY`.
 client = genai.Client()
 
@@ -15,7 +17,7 @@ async def summarize_latest_news(limit: int = 10) -> str:
         return "No articles available to summarize."
     
     titles = " ".join(article.title for article in latest_articles.entries)
-    title_hash = str(hash(titles))
+    title_hash = sha256(titles.encode('utf-8')).hexdigest()
     
     cached_summary = await db_client.get_summary(title_hash)
     if cached_summary:
