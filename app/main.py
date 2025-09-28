@@ -4,18 +4,16 @@ from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from jinja2 import Template
 
-from app.db.mongo_client import MongoClient
+from app.db.mongo_client import client
 from app.models.news_collection import NewsCollection
 from app.models.news_entry import NewsEntry
+from app.services.summarize import summarize_latest_news
 
 app = FastAPI()
 
 app.mount("/public", StaticFiles(directory="public"), "public")
 
 templates = Jinja2Templates("templates")
-
-client = MongoClient()
-
 
 @app.get("/")
 async def index(request: Request):
@@ -48,6 +46,14 @@ def render_partial(partial_name: str, context: dict[str, str | NewsEntry]) -> st
         template = Template(template_content)
         return template.render(**context)
 
+@app.get("/htmx/summary")
+async def get_summary_htmx(request: Request):
+    summary = await summarize_latest_news()
+    return templates.TemplateResponse(
+        request,
+        "partials/summary.html",
+        context={"summary": summary},
+    )
 
 @app.get("/htmx/entries")
 async def get_entries_htmx(request: Request, page: int = 1):
