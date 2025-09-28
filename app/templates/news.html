@@ -6,14 +6,34 @@ Reading Article
 
 {% block content %}
 
-{% if entry %}
+<div class="max-w-4xl mx-auto relative">
+    <!-- Decorative elements -->
+    <div class="absolute -left-4 top-0 w-1 h-full bg-gradient-to-b from-bajan-blue via-bajan-yellow to-transparent hidden lg:block"></div>
+    <div class="absolute -right-4 top-0 w-1 h-full bg-gradient-to-b from-bajan-yellow via-bajan-blue to-transparent hidden lg:block"></div>
 
-{{ entry }}
-
-{% else %}
-
-<h3 class="content has-text-danger">There's no article here to see. Return <a href="/">home</a>.</h3>
-
-{% endif %}
+    {% if entry %}
+    <div class="bg-white/80 backdrop-blur-sm shadow-sm rounded-lg p-6 relative">
+        <div class="absolute inset-0 bg-gradient-to-br from-bajan-blue/5 to-bajan-yellow/5 rounded-lg"></div>
+        <div class="relative">
+            {{ entry }}
+        </div>
+    </div>
+    {% else %}
+    <div class="text-center bg-white/80 backdrop-blur-sm shadow-sm rounded-lg p-8">
+        <div class="mb-6">
+            <svg class="w-16 h-16 mx-auto text-red-500/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+            </svg>
+        </div>
+        <h3 class="text-xl text-red-600 mb-4 font-semibold">There's no article here to see.</h3>
+        <a href="/" class="inline-flex items-center space-x-2 text-bajan-blue hover:text-bajan-yellow transition-colors duration-200 group">
+            <svg class="w-4 h-4 transform group-hover:-translate-x-1 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+            </svg>
+            <span class="font-medium">Return home</span>
+        </a>
+    </div>
+    {% endif %}
+</div>
 
 {% endblock %}

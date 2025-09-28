@@ -6,38 +6,74 @@ Home
 
 {% block content %}
 
-
-<div class="content">
-	<p class="content has-text-centered-touch">Enjoy a selection of all news Barbados! <br>
-		<small class="content is-hidden-touch">Check out the GitHub Project repository <a
-				href="https://github.com/IsaiahSama/BajanInsider">here</a></small>
-	</p>
+<div class="relative text-center mb-12 pb-8">
+    <!-- Decorative elements -->
+    <div class="absolute left-0 top-1/2 -translate-y-1/2 w-24 h-24 bg-gradient-radial from-bajan-yellow/5 to-transparent hidden lg:block"></div>
+    <div class="absolute right-0 top-1/2 -translate-y-1/2 w-24 h-24 bg-gradient-radial from-bajan-blue/5 to-transparent hidden lg:block"></div>
+    
+    <h2 class="text-2xl md:text-3xl font-bold text-gray-800 mb-4">
+        <span class="bg-gradient-to-r from-bajan-blue to-bajan-yellow bg-clip-text text-transparent">
+            Welcome to Bajan Insider
+        </span>
+    </h2>
+    <p class="text-lg md:text-xl text-gray-700 mb-2">Enjoy a selection of all news Barbados!</p>
+    <p class="hidden md:block text-sm text-gray-600">
+        Check out the GitHub Project repository 
+        <a href="https://github.com/IsaiahSama/BajanInsider" 
+           class="text-bajan-blue hover:text-bajan-yellow transition-colors duration-200 font-medium">
+            here
+        </a>
+    </p>
+    <div class="absolute bottom-0 left-1/2 -translate-x-1/2 w-32 h-1 bg-gradient-to-r from-transparent via-bajan-blue to-transparent"></div>
 </div>
 
-<div class="is-flex-desktop is-justify-content-space-between is-align-content-center mb-5">
-
-	<h2 class="subtitle is-hidden-touch">Latest News:</h2>
-	<div class="field">
-		<input id="search" class="input is-size-3-touch" type="text" name="search" style="border: 2px dashed"
-			hx-post="/htmx/entries/filter" hx-trigger="input changed delay:500ms" hx-target="#news"
-			placeholder="🔎Search...">
-	</div>
+<div class="flex flex-col md:flex-row justify-between items-center mb-8 relative">
+    <div class="absolute inset-0 bg-gradient-to-r from-bajan-blue/5 via-transparent to-bajan-yellow/5 rounded-lg -z-10"></div>
+    
+    <h2 class="hidden md:block text-2xl font-bold text-gray-800 mb-4 md:mb-0 ml-4">Latest News:</h2>
+    <div class="w-full md:w-1/2 lg:w-1/3 p-4">
+        <div class="relative group">
+            <input id="search" 
+                type="text" 
+                name="search" 
+                placeholder="🔎 Search articles..."
+                class="w-full px-6 py-3 text-lg md:text-base rounded-lg border-2 border-dashed border-bajan-blue/50 focus:border-bajan-yellow focus:outline-none transition-all duration-300 bg-white/80 backdrop-blur-sm shadow-sm group-hover:shadow-md"
+                hx-post="/htmx/entries/filter" 
+                hx-trigger="input changed delay:500ms" 
+                hx-target="#news">
+            <div class="absolute inset-0 bg-gradient-to-r from-bajan-blue/5 to-bajan-yellow/5 rounded-lg -z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+        </div>
+    </div>
 </div>
 
-<section id="news" hx-get="/htmx/entries" hx-trigger="load" class="mt-2">
-	<div class="is-fullwidth is-flex is-justify-content-center has-test-success"><i>Loading...</i></div>
+<section id="news" 
+    hx-get="/htmx/entries" 
+    hx-trigger="load" 
+    class="relative mt-6 p-4 bg-white/80 backdrop-blur-sm rounded-lg shadow-sm">
+    <div class="flex justify-center items-center min-h-[100px]">
+        <div class="text-gray-600 italic flex items-center space-x-2">
+            <svg class="animate-spin h-5 w-5 text-bajan-blue" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span>Loading news...</span>
+        </div>
+    </div>
 </section>
 
-<button id="backToTop" onclick="scrollToTop()" class="is-size-2-touch">
-	<img src="https://upload.wikimedia.org/wikipedia/commons/e/ef/Flag_of_Barbados.svg" alt="Barbados Flag"
-		style="width: 20px; height: 15px; margin-right: 5px;" class="is-hidden-touch">
-	Back to Top
+<button id="backToTop" 
+    onclick="scrollToTop()" 
+    class="fixed bottom-6 right-6 px-4 py-3 bg-white/90 hover:bg-white text-gray-800 rounded-lg shadow-lg flex items-center space-x-3 transition-all duration-300 hover:scale-105 backdrop-blur-sm group">
+    <img src="https://upload.wikimedia.org/wikipedia/commons/e/ef/Flag_of_Barbados.svg" 
+         alt="Barbados Flag"
+         class="hidden md:block w-5 h-4 transform group-hover:rotate-12 transition-transform duration-300">
+    <span class="text-sm md:text-base font-medium">Back to Top</span>
 </button>
 
 <script>
-	scrollToTop = () => {
-		window.scrollTo({top: 0, behavior: "smooth"});
-	}
+    scrollToTop = () => {
+        window.scrollTo({top: 0, behavior: "smooth"});
+    }
 </script>
 
 {% endblock %}
