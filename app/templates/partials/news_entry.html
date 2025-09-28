@@ -1,42 +1,40 @@
-<article class="w-full bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow duration-300 overflow-hidden group">
-    <!-- Card Header with source and date -->
-    <div class="px-3 sm:px-6 py-3 sm:py-4 bg-gradient-to-r from-bajan-blue/5 to-bajan-yellow/5 border-b border-gray-100">
-        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2">
-            <span class="text-base sm:text-sm font-medium text-bajan-blue">{{ entry.source }}</span>
-            <time class="text-base sm:text-sm text-gray-500">{{ entry.date_scraped }}</time>
-        </div>
-    </div>
+<article
+	class="w-full bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow duration-300 overflow-hidden group">
+	<!-- Card Header with source and date -->
+	<div
+		class="px-3 sm:px-6 py-3 sm:py-4 bg-gradient-to-r from-bajan-blue/5 to-bajan-yellow/5 border-b border-gray-100">
+		<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2">
+			<span class="text-base sm:text-2xl font-medium text-bajan-blue">{{ entry.source }}</span>
+			<time class="text-base sm:text-xl text-gray-500">{{ entry.date_scraped }}</time>
+		</div>
+	</div>
 
-    <!-- Article Title -->
-    <div class="px-3 sm:px-6 py-4">
-        <h2 class="text-2xl sm:text-xl md:text-2xl font-bold text-gray-900 group-hover:text-bajan-blue transition-colors duration-200 leading-tight">
-            {{ entry.title }}
-        </h2>
-    </div>
+	<!-- Article Title -->
+	<div class="px-3 sm:px-6 py-4">
+		<h2
+			class="text-2xl sm:text-4xl md:text-2xl font-bold text-gray-900 group-hover:text-bajan-blue transition-colors duration-200 leading-tight">
+			{{ entry.title }}
+		</h2>
+	</div>
 
-    <!-- Article Content -->
-    <div class="px-3 sm:px-6 py-4">
-        <div class="prose prose-lg sm:prose-base text-gray-800 sm:text-gray-600 w-full max-w-none prose-headings:font-bold prose-a:text-bajan-blue prose-p:text-base sm:prose-p:text-sm md:prose-p:text-base">
-            {{ entry.content }}
-        </div>
-    </div>
+	<!-- Article Content -->
+	<div class="px-3 sm:px-6 py-4">
+		<div
+			class="prose prose-lg sm:text-3xl text-gray-800 sm:text-gray-600 w-full max-w-none prose-headings:font-bold prose-a:text-bajan-blue prose-p:text-base sm:prose-p:text-sm md:prose-p:text-base">
+			{{ entry.content }}
+		</div>
+	</div>
 
-    <!-- Card Footer with CTA -->
-    <div class="px-3 sm:px-6 py-4 bg-gradient-to-r from-bajan-yellow/5 to-bajan-blue/5 border-t border-gray-100">
-        <a href="{{ entry.link }}" 
-           class="flex items-center justify-between text-bajan-blue hover:text-bajan-yellow transition-colors duration-200 group/link w-full p-2 hover:bg-gray-50/50 rounded-lg"
-           target="_blank"
-           rel="noopener noreferrer">
-            <span class="font-medium text-lg sm:text-base">Read full article on {{ entry.source }}</span>
-            <svg class="w-6 h-6 sm:w-4 sm:h-4 transform group-hover/link:translate-x-1 transition-transform duration-200" 
-                 fill="none" 
-                 stroke="currentColor" 
-                 viewBox="0 0 24 24">
-                <path stroke-linecap="round" 
-                      stroke-linejoin="round" 
-                      stroke-width="2" 
-                      d="M13 7l5 5m0 0l-5 5m5-5H6"/>
-            </svg>
-        </a>
-    </div>
+	<!-- Card Footer with CTA -->
+	<div class="px-3 sm:px-6 py-4 bg-gradient-to-r from-bajan-yellow/5 to-bajan-blue/5 border-t border-gray-100">
+		<a href="{{ entry.link }}"
+			class="flex items-center justify-between text-bajan-blue hover:text-bajan-yellow transition-colors duration-200 group/link w-full p-2 hover:bg-gray-50/50 rounded-lg"
+			target="_blank" rel="noopener noreferrer">
+			<span class="font-medium text-lg sm:text-base">Read full article on {{ entry.source }}</span>
+			<svg class="w-6 h-6 sm:w-4 sm:h-4 transform group-hover/link:translate-x-1 transition-transform duration-200"
+				fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+			</svg>
+		</a>
+	</div>
 </article>
