@@ -46,7 +46,8 @@ Home
                 class="w-full px-6 py-4 sm:py-3 text-xl sm:text-lg md:text-base rounded-lg border-2 border-dashed border-bajan-blue/50 focus:border-bajan-yellow focus:outline-none transition-all duration-300 bg-white/80 backdrop-blur-sm shadow-sm group-hover:shadow-md"
                 hx-post="/htmx/entries/filter" 
                 hx-trigger="input changed delay:500ms" 
-                hx-target="#news">
+                hx-target="#news"
+                oninput="document.getElementById('ai_summary').style.display = this.value ? 'none' : 'block'">
             <div class="absolute inset-0 bg-gradient-to-r from-bajan-blue/5 to-bajan-yellow/5 rounded-lg -z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
         </div>
     </div>
