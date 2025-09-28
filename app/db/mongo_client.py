@@ -1,7 +1,7 @@
-from pymongo import ASCENDING, DESCENDING
+from pymongo import DESCENDING
 
 from os import getenv
-from typing import Any, cast, override
+from typing import Any, override
 
 from bson.objectid import ObjectId
 from motor.motor_asyncio import (
