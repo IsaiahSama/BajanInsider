@@ -155,3 +155,5 @@ class MongoClient(DBClient):
         _ = await self.last_updated_db.find_one_and_update(
             filter={}, update={"$set": LastUpdated}
         )
+
+client = MongoClient()
