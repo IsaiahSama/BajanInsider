@@ -4,49 +4,38 @@
 <head>
     <meta charset="UTF-8">
     <title>BajanInsider - {% block title %} {% endblock %}</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        bajan: {
-                            blue: '#00267F',
-                            yellow: '#FFC726',
-                        }
-                    },
-                    backgroundImage: {
-                        'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
-                    }
-                }
-            }
-        }
-    </script>
+    <link rel="stylesheet" href="{{ url_for('public', path='css/app.css') }}" type="text/css">
     <link rel="icon" type="images/png" href="{{ url_for('public', path='BajanInsider.png') }}">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://unpkg.com/htmx.org@2.0.4"
-        integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+"
-        crossorigin="anonymous">
-    </script>
+        integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+" crossorigin="anonymous">
+        </script>
 </head>
 
 <body class="bg-gradient-to-b from-gray-50 to-white min-h-screen">
     <div class="w-full h-1 bg-gradient-to-r from-bajan-blue via-bajan-yellow to-bajan-blue"></div>
-    
+
     <header class="w-full bg-white shadow-lg">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
             <nav class="flex items-center justify-center relative">
                 <!-- Decorative elements -->
-                <div class="absolute left-0 top-1/2 -translate-y-1/2 w-12 h-12 bg-gradient-radial from-bajan-yellow/5 to-transparent hidden lg:block opacity-50"></div>
-                <div class="absolute right-0 top-1/2 -translate-y-1/2 w-12 h-12 bg-gradient-radial from-bajan-blue/5 to-transparent hidden lg:block opacity-50"></div>
-                
+                <div
+                    class="absolute left-0 top-1/2 -translate-y-1/2 w-12 h-12 bg-gradient-radial from-bajan-yellow/5 to-transparent hidden lg:block opacity-50">
+                </div>
+                <div
+                    class="absolute right-0 top-1/2 -translate-y-1/2 w-12 h-12 bg-gradient-radial from-bajan-blue/5 to-transparent hidden lg:block opacity-50">
+                </div>
+
                 <a href="/" class="flex flex-col items-center group relative">
                     <div class="relative">
-                        <div class="absolute inset-0 bg-gradient-radial from-bajan-yellow/20 to-transparent rounded-full scale-110 group-hover:scale-125 transition-transform duration-300"></div>
-                        <img src="{{ url_for('public', path='BajanInsider.png') }}" 
-                             alt="BajanInsider Logo"
-                             class="w-16 h-16 relative transform group-hover:scale-110 transition-all duration-300">
+                        <div
+                            class="absolute inset-0 bg-gradient-radial from-bajan-yellow/20 to-transparent rounded-full scale-110 group-hover:scale-125 transition-transform duration-300">
+                        </div>
+                        <img src="{{ url_for('public', path='BajanInsider.png') }}" alt="BajanInsider Logo"
+                            class="w-16 h-16 relative transform group-hover:scale-110 transition-all duration-300">
                     </div>
-                    <h1 class="text-3xl font-bold bg-gradient-to-r from-bajan-blue via-bajan-yellow to-bajan-blue bg-clip-text text-transparent group-hover:from-bajan-yellow group-hover:to-bajan-blue transition-all duration-300">
+                    <h1
+                        class="text-3xl font-bold bg-gradient-to-r from-bajan-blue via-bajan-yellow to-bajan-blue bg-clip-text text-transparent group-hover:from-bajan-yellow group-hover:to-bajan-blue transition-all duration-300">
                         Bajan Insider
                     </h1>
                 </a>

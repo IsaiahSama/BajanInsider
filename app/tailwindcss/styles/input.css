@@ -1,0 +1,8 @@
+@import "tailwindcss";
+
+@source "../../templates";
+
+@theme {
+    --color-bajan-blue: #00267F;
+    --color-bajan-yellow: #FFC726;
+}
