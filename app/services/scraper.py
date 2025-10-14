@@ -57,5 +57,5 @@ class Scraper:
 
         """
 
-        entries = parser.parse_entries(soup, amount)
+        entries = await parser.parse_entries(soup, amount)
         return entries

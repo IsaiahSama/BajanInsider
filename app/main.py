@@ -7,7 +7,7 @@ from jinja2 import Template
 from app.db.mongo_client import client
 from app.models.news_collection import NewsCollection
 from app.models.news_entry import NewsEntry
-from app.services.summarize import summarize_latest_news
+from app.services.news_ai import summarize_latest_news
 
 app = FastAPI()
 

@@ -16,6 +16,7 @@ class NewsEntry(BaseModel):
     source: str
     link: str
     date_scraped: str
+    tags: str = "" # Comma separated tags (tag1,tag2,tag3)
 
     class Config:
         populate_by_name: bool = True

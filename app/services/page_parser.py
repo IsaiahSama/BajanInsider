@@ -8,6 +8,7 @@ from bs4.element import PageElement
 
 from app.models.news_collection import NewsCollection
 from app.models.news_entry import NewsEntry
+from app.services.news_ai import create_tags
 
 
 class PageParser(ABC):
@@ -15,7 +16,7 @@ class PageParser(ABC):
 
     @staticmethod
     @abstractmethod
-    def parse_entries(soup: BeautifulSoup, n: int) -> NewsCollection | None:
+    async def parse_entries(soup: BeautifulSoup, n: int) -> NewsCollection | None:
         """This method will obtain news information from it's website.
 
         Args:
@@ -26,8 +27,7 @@ class PageParser(ABC):
             dict: A mapping of the entires following the stated format.
         """
         raise NotImplementedError
-
-
+    
 class GoogleNewsParser(PageParser):
     urls: list[str] = [
         "https://www.google.com/search?&q=barbados+news&tbm=nws",
@@ -38,7 +38,7 @@ class GoogleNewsParser(PageParser):
 
     @staticmethod
     @override
-    def parse_entries(soup: BeautifulSoup, n: int) -> NewsCollection | None:
+    async def parse_entries(soup: BeautifulSoup, n: int) -> NewsCollection | None:
         entries: list[NewsEntry] = []
         # Meta Information
 
@@ -53,7 +53,7 @@ class GoogleNewsParser(PageParser):
             a: Tag = news_container
 
             link: str = (
-                a["href"].split("?")[1].lstrip("q=").split("&")[0]
+                str(a["href"]).split("?")[1].lstrip("q=").split("&")[0]
             )  # href link is in format of: '/url?q=https://someurl/&someGoogleParams'
 
             if not isinstance(link, str):
@@ -106,16 +106,18 @@ class GoogleNewsParser(PageParser):
 
             date_scraped = datetime.now().strftime("%Y-%m-%d")
 
+            tags = await create_tags(title, content)
+
             entry = NewsEntry(
                 title=title,
                 content=content,
                 source=source,
                 link=link,
                 date_scraped=date_scraped,
+                tags=tags,
             )
 
             entries.append(entry)
 
         news_collection = NewsCollection(entries=entries)
-        # Return
         return news_collection

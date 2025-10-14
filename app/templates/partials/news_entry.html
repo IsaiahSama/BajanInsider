@@ -23,6 +23,17 @@
 			class="prose prose-lg md:text-lg sm:text-3xl text-gray-800 sm:text-gray-600 w-full max-w-none prose-headings:font-bold prose-a:text-bajan-blue prose-p:text-base sm:prose-p:text-sm md:prose-p:text-base">
 			{{ entry.content }}
 		</div>
+		{% if entry.tags != "" %}
+
+		<div class="mt-4 flex flex-wrap gap-2">
+			{% for tag in entry.tags.split(",") %}
+			<span
+				class="inline-block bg-bajan-blue/10 text-bajan-blue text-sm font-medium px-3 py-1 rounded-full border border-bajan-blue/20">
+				#{{ tag }}
+			</span>
+			{% endfor %}
+		</div>
+		{% endif %}
 	</div>
 
 	<!-- Card Footer with CTA -->
