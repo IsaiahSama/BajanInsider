@@ -11,6 +11,7 @@ from motor.motor_asyncio import (
 )
 
 from app.models.last_updated import LastUpdated
+from app.services.create_tags import create_tags
 
 from .db_client import DBClient
 from app.models import NewsEntry, NewsCollection, Summary
@@ -46,12 +47,12 @@ class MongoClient(DBClient):
         self.last_updated_db = self.db.get_collection(self.last_updated_table)
         self.summary_cache_db = self.db.get_collection(self.summary_cache_table)
 
-    async def is_unique_title(self, entry: NewsEntry) -> bool:
-        return not bool(await self.news_db.find_one({"title": entry.title}))
+    async def is_unique_title(self, title: str) -> bool:
+        return not bool(await self.news_db.find_one({"title": title}))
 
     @override
     async def add_news_entry(self, news_entry: NewsEntry) -> NewsEntry | None:
-        if not await self.is_unique_title(news_entry):
+        if not await self.is_unique_title(news_entry.title):
             return None
 
         new_entry = await self.news_db.insert_one(
@@ -64,10 +65,17 @@ class MongoClient(DBClient):
 
     @override
     async def add_news_entries(self, news_collection: NewsCollection) -> None:
+        entries: list[dict[str, str]] = []
+        
+        for entry in news_collection.entries:
+            if await self.is_unique_title(entry.title):
+                entry.tags = await create_tags(entry.title, entry.content)
+                entries.append(entry.model_dump(by_alias=True, exclude={"id"}))
+        
         entries: list[dict[str, str]] = [
             entry.model_dump(by_alias=True, exclude={"id"})
             for entry in news_collection.entries
-            if await self.is_unique_title(entry)
+            if await self.is_unique_title(entry.title)
         ]
 
         if not entries:

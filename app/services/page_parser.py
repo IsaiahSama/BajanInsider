@@ -8,7 +8,6 @@ from bs4.element import PageElement
 
 from app.models.news_collection import NewsCollection
 from app.models.news_entry import NewsEntry
-from app.services.news_ai import create_tags
 
 
 class PageParser(ABC):
@@ -106,15 +105,12 @@ class GoogleNewsParser(PageParser):
 
             date_scraped = datetime.now().strftime("%Y-%m-%d")
 
-            tags = await create_tags(title, content)
-
             entry = NewsEntry(
                 title=title,
                 content=content,
                 source=source,
                 link=link,
                 date_scraped=date_scraped,
-                tags=tags,
             )
 
             entries.append(entry)
