@@ -80,7 +80,7 @@ class MongoClient(DBClient):
         if isinstance(entry_id, str):
             entry_id = ObjectId(entry_id)
 
-        entry: dict[str, str] | None = await self.news_db.find_one({"_id": entry_id})
+        entry: dict[str, Any] | None = await self.news_db.find_one({"_id": entry_id})
 
         if not entry:
             return None
@@ -102,6 +102,7 @@ class MongoClient(DBClient):
 
         for collection in await cursor.sort("date_scraped", DESCENDING).to_list(100):
             if collection:
+                collection: dict[str, Any]
                 results.append(NewsEntry(**collection))
 
         return NewsCollection(entries=results) if results else None
@@ -119,11 +120,12 @@ class MongoClient(DBClient):
         )
 
         if entries:
+            entries: list[dict[str, Any]]
             return NewsCollection(entries=[NewsEntry(**entry) for entry in entries])
 
     @override
     async def get_all_entries(self) -> NewsCollection | None:
-        entries = (
+        entries: list[dict[str, Any]] = (
             await self.news_db.find().sort("date_scraped", DESCENDING).to_list(1000)
         )
 

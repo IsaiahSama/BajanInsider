@@ -1,5 +1,5 @@
 from typing import Annotated
-
+from datetime import datetime
 from pydantic import BaseModel, BeforeValidator, Field
 
 PyObjectId = Annotated[str, BeforeValidator(str)]
@@ -16,6 +16,7 @@ class NewsEntry(BaseModel):
     source: str
     link: str
     date_scraped: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
 
     class Config:
         populate_by_name: bool = True
