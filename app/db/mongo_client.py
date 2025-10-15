@@ -102,6 +102,7 @@ class MongoClient(DBClient):
             "$or": [
                 {"title": {"$regex": search, "$options": "i"}},
                 {"content": {"$regex": search, "$options": "i"}},
+                {"tags": {"$regex": search, "$options": "i"}},
             ]
         }
 
