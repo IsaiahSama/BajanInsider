@@ -100,7 +100,7 @@ class MongoClient(DBClient):
         cursor = self.news_db.find(query)
         results: list[NewsEntry] = []
 
-        for collection in await cursor.sort("date_scraped", DESCENDING).to_list(100):
+        for collection in await cursor.sort("created_at", DESCENDING).sort("date_scraped", DESCENDING).to_list(100):
             if collection:
                 collection: dict[str, Any]
                 results.append(NewsEntry(**collection))
@@ -113,6 +113,7 @@ class MongoClient(DBClient):
     ) -> NewsCollection | None:
         entries = (
             await self.news_db.find()
+            .sort("created_at", DESCENDING)
             .sort("date_scraped", DESCENDING)
             .skip(start)
             .limit(limit)
@@ -126,7 +127,7 @@ class MongoClient(DBClient):
     @override
     async def get_all_entries(self) -> NewsCollection | None:
         entries: list[dict[str, Any]] = (
-            await self.news_db.find().sort("date_scraped", DESCENDING).to_list(1000)
+            await self.news_db.find().sort('created_at', DESCENDING).sort("date_scraped", DESCENDING).to_list(1000)
         )
 
         return (
