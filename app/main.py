@@ -8,12 +8,20 @@ from app.db.mongo_client import client
 from app.models.news_collection import NewsCollection
 from app.models.news_entry import NewsEntry
 from app.services.summarize import summarize_latest_news
+from app.services.misc import update_sitemap_lastmod
 
 app = FastAPI()
+
+
+@app.on_event("startup")
+async def startup_event():
+    update_sitemap_lastmod()
+
 
 app.mount("/public", StaticFiles(directory="public"), "public")
 
 templates = Jinja2Templates("templates")
+
 
 @app.get("/")
 async def index(request: Request):
@@ -46,6 +54,7 @@ def render_partial(partial_name: str, context: dict[str, str | NewsEntry]) -> st
         template = Template(template_content)
         return template.render(**context)
 
+
 @app.get("/htmx/summary")
 async def get_summary_htmx(request: Request):
     summary = await summarize_latest_news()
@@ -54,6 +63,7 @@ async def get_summary_htmx(request: Request):
         "partials/summary.html",
         context={"summary": summary},
     )
+
 
 @app.get("/htmx/entries")
 async def get_entries_htmx(request: Request, page: int = 1):
@@ -67,7 +77,9 @@ async def get_entries_htmx(request: Request, page: int = 1):
     total_pages = (total_entries + ENTRIES_PER_PAGE - 1) // ENTRIES_PER_PAGE
 
     # Get paginated entries
-    news_collection: NewsCollection | None = await client.get_entries(start, ENTRIES_PER_PAGE)
+    news_collection: NewsCollection | None = await client.get_entries(
+        start, ENTRIES_PER_PAGE
+    )
 
     if news_collection:
         for entry in news_collection.entries:
@@ -87,21 +99,23 @@ async def get_entries_htmx(request: Request, page: int = 1):
 
 
 @app.post("/htmx/entries/filter/")
-async def filter_entries_htmx(request: Request, search: Annotated[str, Form()], page: int = 1):
+async def filter_entries_htmx(
+    request: Request, search: Annotated[str, Form()], page: int = 1
+):
     rendered_entries: list[str] = []
 
     if not search:
         return await get_entries_htmx(request, page)
 
     filtered_news_collection: NewsCollection | None = await client.find_entry(search)
-    
+
     if filtered_news_collection:
         ENTRIES_PER_PAGE = 30
         start = (page - 1) * ENTRIES_PER_PAGE
         end = start + ENTRIES_PER_PAGE
         total_entries = len(filtered_news_collection.entries)
         total_pages = (total_entries + ENTRIES_PER_PAGE - 1) // ENTRIES_PER_PAGE
-        
+
         # Paginate the filtered entries
         paginated_entries = filtered_news_collection.entries[start:end]
         for entry in paginated_entries:

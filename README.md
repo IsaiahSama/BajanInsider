@@ -4,7 +4,7 @@ Welcome to Bajan Insider, a website designed to gather Barbados news from variou
 
 ## About
 
-Bajan Insider is designed to act as a centralized location for all Barbados news.
+Bajan Insider is designed to act as a centralized location for all Barbados news, and will be updated daily at 5am and 4pm AST.
 Various stories will be pulled from various sources, organized, and then displayed on the site for your viewing convenience.
 We also provide an AI summary of the latest news for easy perusal, because is it really an app if it doesn't have AI in some way?
 
