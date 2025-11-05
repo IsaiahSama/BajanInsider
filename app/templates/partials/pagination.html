@@ -8,13 +8,13 @@
         <svg class="w-5 h-5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
         </svg>
-        <span>Previous</span>
+        <span>Newer</span>
     </button>
     {% endif %}
 
     <!-- Page numbers -->
-    <div class="pagination-container flex items-center gap-2 sm:gap-1" data-current-page="{{ current_page }}"
-        data-total-pages="{{ total_pages }}">
+    <div class="pagination-container sm:hidden sm:flex items-center gap-2 sm:gap-1"
+        data-current-page="{{ current_page }}" data-total-pages="{{ total_pages }}">
         <!-- Populated by script -->
     </div>
 
@@ -23,7 +23,7 @@
     <button
         class="w-full sm:w-auto px-6 sm:px-4 py-3 sm:py-2 text-lg sm:text-sm font-medium text-bajan-blue hover:text-bajan-yellow transition-colors duration-200 flex items-center justify-center space-x-2 sm:space-x-1 bg-white/80 backdrop-blur-sm rounded-lg shadow-sm hover:shadow-md"
         hx-get="/htmx/entries?page={{ current_page + 1 }}" hx-target="#news">
-        <span>Next</span>
+        <span>Older</span>
         <svg class="w-5 h-5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
         </svg>
