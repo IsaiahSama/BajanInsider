@@ -46,12 +46,20 @@ class MongoClient(DBClient):
         self.last_updated_db = self.db.get_collection(self.last_updated_table)
         self.summary_cache_db = self.db.get_collection(self.summary_cache_table)
 
-    async def is_unique_title(self, entry: NewsEntry) -> bool:
-        return not bool(await self.news_db.find_one({"title": entry.title}))
+    async def is_unique_entry(self, entry: NewsEntry) -> bool:
+        return not bool(
+            await self.news_db.find_one(
+                {
+                    "title": entry.title,
+                    "source": entry.source,
+                    "date_scraped": entry.date_scraped,
+                }
+            )
+        )
 
     @override
     async def add_news_entry(self, news_entry: NewsEntry) -> NewsEntry | None:
-        if not await self.is_unique_title(news_entry):
+        if not await self.is_unique_entry(news_entry):
             return None
 
         new_entry = await self.news_db.insert_one(
@@ -67,7 +75,7 @@ class MongoClient(DBClient):
         entries: list[dict[str, str]] = [
             entry.model_dump(by_alias=True, exclude={"id"})
             for entry in news_collection.entries
-            if await self.is_unique_title(entry)
+            if await self.is_unique_entry(entry)
         ]
 
         if not entries:
@@ -100,7 +108,11 @@ class MongoClient(DBClient):
         cursor = self.news_db.find(query)
         results: list[NewsEntry] = []
 
-        for collection in await cursor.sort("created_at", DESCENDING).sort("date_scraped", DESCENDING).to_list(100):
+        for collection in (
+            await cursor.sort("created_at", DESCENDING)
+            .sort("date_scraped", DESCENDING)
+            .to_list(100)
+        ):
             if collection:
                 collection: dict[str, Any]
                 results.append(NewsEntry(**collection))
@@ -127,7 +139,10 @@ class MongoClient(DBClient):
     @override
     async def get_all_entries(self) -> NewsCollection | None:
         entries: list[dict[str, Any]] = (
-            await self.news_db.find().sort('created_at', DESCENDING).sort("date_scraped", DESCENDING).to_list(1000)
+            await self.news_db.find()
+            .sort("created_at", DESCENDING)
+            .sort("date_scraped", DESCENDING)
+            .to_list(1000)
         )
 
         return (
@@ -161,7 +176,7 @@ class MongoClient(DBClient):
         _ = await self.last_updated_db.find_one_and_update(
             filter={}, update={"$set": LastUpdated}
         )
-        
+
     @override
     async def get_summary(self, title_hash: str) -> Summary | None:
         summary = await self.summary_cache_db.find_one({"title_hash": title_hash})
@@ -170,7 +185,7 @@ class MongoClient(DBClient):
             return None
 
         return Summary(**summary)
-    
+
     @override
     async def add_summary(self, title_hash: str, summary_text: str) -> Summary:
         existing_summary = await self.get_summary(title_hash)
@@ -184,4 +199,6 @@ class MongoClient(DBClient):
         )
         return new_summary
 
+
 client = MongoClient()
+

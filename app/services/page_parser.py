@@ -116,6 +116,9 @@ class GoogleNewsParser(PageParser):
 
             entries.append(entry)
 
+        # Need to remove duplicates.
+        entries = list(set(entries))
+
         news_collection = NewsCollection(entries=entries)
         # Return
         return news_collection
