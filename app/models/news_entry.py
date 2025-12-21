@@ -5,7 +5,7 @@ from pydantic import BaseModel, BeforeValidator, Field
 PyObjectId = Annotated[str, BeforeValidator(str)]
 
 
-class NewsEntry(BaseModel):
+class NewsEntry(BaseModel, frozen=True):
     """
     Model representing a news entry.
     """
