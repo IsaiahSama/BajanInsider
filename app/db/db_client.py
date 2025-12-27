@@ -152,3 +152,21 @@ class DBClient(ABC):
             None: If insertion failed
         """
         raise NotImplementedError
+
+    @abstractmethod
+    async def test_and_set(self) -> bool:
+        """Determines whether or not a new summary should be made
+
+        Returns:
+            bool: Whether or not the operation should continue
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    async def release_lock(self) -> None:
+        """Releases a lock made on the db
+
+            Returns:
+                None
+        """
+        raise NotImplementedError

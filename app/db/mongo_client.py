@@ -26,11 +26,13 @@ class MongoClient(DBClient):
     db_name: str = "BajanInsiderMongoDB"
     news_table: str = "news_entry"
     last_updated_table: str = "last_updated"
+    test_set_table: str = "test_set"
     summary_cache_table: str = "summary_cache"
 
     db: AsyncIOMotorDatabase[Any]
     news_db: AsyncIOMotorCollection[dict[str, str]]
     last_updated_db: AsyncIOMotorCollection[dict[str, str]]
+    test_set_db: AsyncIOMotorCollection[dict[str, str]]
     summary_cache_db: AsyncIOMotorCollection[dict[str, str]]
 
     def __init__(self):
@@ -44,6 +46,7 @@ class MongoClient(DBClient):
 
         self.news_db = self.db.get_collection(self.news_table)
         self.last_updated_db = self.db.get_collection(self.last_updated_table)
+        self.test_set_db = self.db.get_collection(self.test_set_table)
         self.summary_cache_db = self.db.get_collection(self.summary_cache_table)
 
     async def is_unique_entry(self, entry: NewsEntry) -> bool:
@@ -198,6 +201,26 @@ class MongoClient(DBClient):
             new_summary.model_dump(exclude={"id"})
         )
         return new_summary
+
+    @override
+    async def test_and_set(self) -> bool:
+        db_lock_status = await self.test_set_db.find_one()
+        acquire_lock: bool = False
+
+        if not db_lock_status:
+            acquire_lock = True
+            _ = await self.test_set_db.insert_one({"lock": "true"})
+        elif db_lock_status and db_lock_status["lock"] == "false":
+            acquire_lock = True
+            _ = await self.test_set_db.update_one({"_id": db_lock_status["_id"]}, { "$set": {'lock': "true"}}) 
+        else:
+            acquire_lock = False
+
+        return acquire_lock
+
+    @override
+    async def release_lock(self) -> None:
+        _ = await self.test_set_db.find_one_and_update({}, {"$set": {"lock": "false"}}, upsert=True)
 
 
 client = MongoClient()

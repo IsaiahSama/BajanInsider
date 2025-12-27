@@ -15,6 +15,7 @@ async def summarize_latest_news(limit: int = 10) -> str:
     
     if not latest_articles or not latest_articles.entries:
         return "No articles available to summarize."
+
     
     titles = " ".join(article.title for article in latest_articles.entries)
     title_hash = sha256(titles.encode('utf-8')).hexdigest()
@@ -22,6 +23,14 @@ async def summarize_latest_news(limit: int = 10) -> str:
     cached_summary = await db_client.get_summary(title_hash)
     if cached_summary:
         return cached_summary.ai_summary
+
+    # Let us acquire the mutex Lock!
+    lock: bool = await db_client.test_and_set() # If false, then we didn't get the lock, so there should be no updating.
+    if not lock: 
+        print("Lock not acquired")
+        return "Summary is loading... Refresh in a few seconds!"
+
+    print("Lock acquired! Summarizing now!")
 
     articles = "\n\n".join(f"Title: {article.title}\n Content: {article.content}" for article in latest_articles.entries)
 
@@ -34,9 +43,12 @@ async def summarize_latest_news(limit: int = 10) -> str:
         )
     except Exception as e:
         print(e)
+        await db_client.release_lock()
         return "Could not generate summary at this time."
     
     if response.text:
         await db_client.add_summary(title_hash, response.text)
         
+    await db_client.release_lock()
+    print("Lock released")
     return response.text or "No summary available at this time."
