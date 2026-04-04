@@ -43,12 +43,13 @@ class GoogleNewsParser(PageParser):
     @staticmethod
     @override
     def parse_entries(soup: BeautifulSoup, n: int) -> NewsCollection | None:
+        logger.info(f"Parsing entries with GoogleNewsParser, requested: {n}")
         entries: list[NewsEntry] = []
         # Meta Information
 
         # Containers with news have the CSS selector of:
         # #main > div > div > a
-        news_container_selector = "#main > div > div > a"  # This gets 10 entries.
+        news_container_selector = "#main > div > div"  # This gets 10 entries.
 
         news_containers: list[Tag] = soup.select(news_container_selector)
 
@@ -56,6 +57,9 @@ class GoogleNewsParser(PageParser):
             logger.warning(
                 f"No news containers found with selector: {news_container_selector}"
             )
+            return None
+
+        logger.info(f"Found {len(news_containers)} news containers")
 
         for news_container in news_containers:
             a: Tag = news_container
@@ -73,6 +77,7 @@ class GoogleNewsParser(PageParser):
             ]
 
             if not inner_containers:
+                logger.debug("No inner containers found, skipping")
                 continue
 
             # The first container contains the header information
@@ -99,6 +104,7 @@ class GoogleNewsParser(PageParser):
             # The parent of this span tag will be a div container with the content
 
             if not span_tag:
+                logger.debug("No span tag found in body container, skipping")
                 continue
 
             content_tag = span_tag.find_parent()
@@ -122,9 +128,11 @@ class GoogleNewsParser(PageParser):
                 date_scraped=date_scraped,
             )
 
+            logger.debug(f"Parsed entry: {title[:50]}... from {source}")
             entries.append(entry)
 
         entries = list(set(entries))
+        logger.info(f"Total unique entries parsed: {len(entries)}")
 
         news_collection = NewsCollection(entries=entries)
         # Return
