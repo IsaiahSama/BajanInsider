@@ -9,6 +9,10 @@ from bs4.element import PageElement
 from app.models.news_collection import NewsCollection
 from app.models.news_entry import NewsEntry
 
+from .logger import get_logger
+
+logger = get_logger(__name__)
+
 
 class PageParser(ABC):
     urls: list[str] = []  # The URLs to be used.
@@ -44,10 +48,14 @@ class GoogleNewsParser(PageParser):
 
         # Containers with news have the CSS selector of:
         # #main > div > div > a
-
         news_container_selector = "#main > div > div > a"  # This gets 10 entries.
 
         news_containers: list[Tag] = soup.select(news_container_selector)
+
+        if not news_containers:
+            logger.warning(
+                f"No news containers found with selector: {news_container_selector}"
+            )
 
         for news_container in news_containers:
             a: Tag = news_container

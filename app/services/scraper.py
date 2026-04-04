@@ -7,7 +7,10 @@ from bs4 import BeautifulSoup
 
 from app.models.news_collection import NewsCollection
 
+from .logger import get_logger
 from .page_parser import PageParser
+
+logger = get_logger(__name__)
 
 """
 
@@ -35,10 +38,11 @@ class Scraper:
         Returns:
             BeautifulSoup: The soup object"""
 
+        logger.info(f"Fetching URL: {url}")
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as response:
                 html = await response.text()
-
+                logger.info(f"Successfully fetched: {url}")
                 return BeautifulSoup(html, "html.parser")
 
     @staticmethod
@@ -58,4 +62,8 @@ class Scraper:
         """
 
         entries = parser.parse_entries(soup, amount)
+        if entries:
+            logger.info(
+                f"Extracted {len(entries.entries)} entries from {parser.__class__.__name__}"
+            )
         return entries
