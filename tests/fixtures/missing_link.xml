@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Missing Link Feed</title>
+    <link>https://example.test/</link>
+    <description>Items with absent, empty, and guid-only links.</description>
+    <item>
+      <title>Item with a proper link</title>
+      <link>https://example.test/stories/1</link>
+      <description>First story.</description>
+    </item>
+    <item>
+      <title>Item with no link and a non-permalink guid</title>
+      <guid isPermaLink="false">tag:example.test,2026:2</guid>
+      <description>Should be skipped.</description>
+    </item>
+    <item>
+      <title>Item with an empty link</title>
+      <link></link>
+      <description>Should be skipped.</description>
+    </item>
+    <item>
+      <title>Item whose only link is a permalink guid</title>
+      <guid isPermaLink="true">https://example.test/stories/4</guid>
+      <description>Kept via guid.</description>
+    </item>
+    <item>
+      <title></title>
+      <link>https://example.test/stories/5</link>
+      <description>Blank title, should be skipped.</description>
+    </item>
+  </channel>
+</rss>

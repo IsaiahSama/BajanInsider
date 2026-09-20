@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Duplicate Links Feed</title>
+    <link>https://example.test/</link>
+    <description>Two items point at the same story, one via a tracking URL.</description>
+    <item>
+      <title>Story A</title>
+      <link>https://example.test/stories/a</link>
+      <description>Original.</description>
+    </item>
+    <item>
+      <title>Story A (syndicated)</title>
+      <link>https://example.test/stories/a?utm_source=rss&amp;utm_medium=rss</link>
+      <description>Same story with tracking parameters.</description>
+    </item>
+    <item>
+      <title>Story B</title>
+      <link>https://example.test/stories/b?page=2&amp;utm_campaign=x</link>
+      <description>Different story; keeps its real query parameter.</description>
+    </item>
+  </channel>
+</rss>

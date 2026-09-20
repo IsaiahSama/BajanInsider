@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SYNTHETIC FIXTURE. Loop News was shut down by Digicel in July 2025; the relaunched
+  https://www.loopnews.com/news/barbados/feed/ serves a WordPress RSS 2.0 feed with no
+  items behind an expired TLS certificate. This file mirrors that WordPress feed shape
+  so LoopNewsParser stays covered until the source comes back. Stories are invented.
+-->
+<rss version="2.0"
+	xmlns:content="http://purl.org/rss/1.0/modules/content/"
+	xmlns:wfw="http://wellformedweb.org/CommentAPI/"
+	xmlns:dc="http://purl.org/dc/elements/1.1/"
+	xmlns:atom="http://www.w3.org/2005/Atom"
+	xmlns:sy="http://purl.org/rss/1.0/modules/syndication/"
+	xmlns:slash="http://purl.org/rss/1.0/modules/slash/"
+	>
+<channel>
+	<title>News - Barbados News, Trends &amp; Insights | Loop News</title>
+	<atom:link href="https://www.loopnews.com/news/barbados/feed/" rel="self" type="application/rss+xml" />
+	<link>https://www.loopnews.com/news/barbados/</link>
+	<description>Loop News</description>
+	<lastBuildDate>Mon, 30 Jun 2025 12:00:00 +0000</lastBuildDate>
+	<language>en-US</language>
+	<generator>https://wordpress.org/?v=6.8</generator>
+	<item>
+		<title>Fictional council approves new bus terminal plan</title>
+		<link>https://www.loopnews.com/news/barbados/fictional-bus-terminal-plan/?utm_source=rss&#038;utm_medium=rss</link>
+		<dc:creator><![CDATA[Loop Newsroom]]></dc:creator>
+		<pubDate>Mon, 30 Jun 2025 11:45:00 +0000</pubDate>
+		<category><![CDATA[Barbados]]></category>
+		<guid isPermaLink="false">https://www.loopnews.com/?p=1001</guid>
+		<description><![CDATA[<p>An invented story used only for testing: planners agreed a phased approach to a new terminal.</p>
+<p>The post <a href="https://www.loopnews.com/news/barbados/fictional-bus-terminal-plan/">Fictional council approves new bus terminal plan</a> appeared first on <a href="https://www.loopnews.com">Loop News</a>.</p>]]></description>
+	</item>
+	<item>
+		<title>Test story: coastal clean-up draws record volunteers</title>
+		<link>https://www.loopnews.com/news/barbados/test-coastal-clean-up/</link>
+		<dc:creator><![CDATA[Loop Newsroom]]></dc:creator>
+		<pubDate>Mon, 30 Jun 2025 10:30:00 +0000</pubDate>
+		<category><![CDATA[Barbados]]></category>
+		<guid isPermaLink="false">https://www.loopnews.com/?p=1002</guid>
+		<description><![CDATA[<p>Invented for testing &#8211; hundreds of volunteers joined a fictional weekend clean-up.</p>]]></description>
+	</item>
+	<item>
+		<title>Placeholder: fuel prices adjusted in monthly review</title>
+		<link>https://www.loopnews.com/news/barbados/placeholder-fuel-prices/</link>
+		<dc:creator><![CDATA[Loop Newsroom]]></dc:creator>
+		<pubDate>Sun, 29 Jun 2025 16:00:00 +0000</pubDate>
+		<category><![CDATA[Business]]></category>
+		<guid isPermaLink="false">https://www.loopnews.com/?p=1003</guid>
+		<description><![CDATA[<p>A made-up notice about a routine price adjustment.</p>]]></description>
+	</item>
+	<item>
+		<title>Sample: schools reopen after fictional storm alert lifted</title>
+		<link>https://www.loopnews.com/news/barbados/sample-schools-reopen/</link>
+		<dc:creator><![CDATA[Loop Newsroom]]></dc:creator>
+		<pubDate>Sun, 29 Jun 2025 08:00:00 +0000</pubDate>
+		<category><![CDATA[Barbados]]></category>
+		<guid isPermaLink="false">https://www.loopnews.com/?p=1004</guid>
+		<description><![CDATA[<p>Test content only: classes resume after an invented weather advisory ends.</p>]]></description>
+	</item>
+	<item>
+		<title>Dummy item: cricket club marks anniversary</title>
+		<link>https://www.loopnews.com/news/barbados/dummy-cricket-anniversary/</link>
+		<dc:creator><![CDATA[Loop Newsroom]]></dc:creator>
+		<pubDate>Sat, 28 Jun 2025 14:00:00 +0000</pubDate>
+		<category><![CDATA[Sport]]></category>
+		<guid isPermaLink="false">https://www.loopnews.com/?p=1005</guid>
+		<description><![CDATA[<p>Fictional celebration copy for parser coverage.</p>]]></description>
+	</item>
+</channel>
+</rss>

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Minimal Atom</title>
+  <link rel="alternate" type="text/html" href="https://example.test/"/>
+  <link rel="self" href="https://example.test/atom.xml"/>
+  <id>https://example.test/atom.xml</id>
+  <updated>2026-09-20T12:00:00Z</updated>
+  <entry>
+    <title type="html">Fish &amp;amp; chips &lt;em&gt;review&lt;/em&gt;</title>
+    <link rel="alternate" href="https://example.test/food/fish-and-chips"/>
+    <link rel="enclosure" href="https://example.test/food/fish.jpg"/>
+    <id>https://example.test/food/fish-and-chips</id>
+    <updated>2026-09-20T11:00:00Z</updated>
+    <summary type="html">&lt;p&gt;Crispy &amp;amp; golden.&lt;/p&gt;</summary>
+  </entry>
+  <entry>
+    <title>Relative link entry</title>
+    <link href="/news/relative-story"/>
+    <id>urn:uuid:relative</id>
+    <updated>2026-09-20T10:00:00Z</updated>
+    <content type="xhtml">
+      <div xmlns="http://www.w3.org/1999/xhtml"><p>Structured <b>xhtml</b> content.</p></div>
+    </content>
+  </entry>
+  <entry>
+    <title>Entry with only a self link</title>
+    <link rel="self" href="https://example.test/atom/3"/>
+    <id>urn:uuid:no-alternate</id>
+    <updated>2026-09-20T09:00:00Z</updated>
+    <summary>Should be skipped.</summary>
+  </entry>
+</feed>
