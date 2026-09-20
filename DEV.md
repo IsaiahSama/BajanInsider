@@ -68,6 +68,21 @@ This website will only have snippets of the story, so as to not take traffic awa
 
 That's all for now. As I think of more things, and come across different issues and solutions, I'll update this document to suit.
 
+## Deduplication
+
+A story is stored once. Two unique indexes on `news_entry` define "the same story":
+
+1. `link` — the article URL. Catches the same item re-offered by a feed on later
+   days (feeds keep items for days or weeks) and headline edits.
+2. `(title, source)`, case-insensitive — catches aggregator copies (Google News)
+   whose link is a redirect rather than the publisher URL.
+
+`date_scraped` is not part of the identity. Publisher labels are canonicalised at
+parse time via `SOURCE_ALIASES` in `app/services/page_parser.py` so one outlet has
+one name ("BBC" → "BBC News"); add a row there when a new spelling appears.
+Title alone is deliberately *not* the identity: different outlets' own articles
+under the same headline are different stories.
+
 ## Running & testing
 
 ### Environment variables

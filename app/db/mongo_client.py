@@ -10,6 +10,7 @@ from motor.motor_asyncio import (
     AsyncIOMotorDatabase,
 )
 from pymongo import ASCENDING, DESCENDING, ReturnDocument
+from pymongo.collation import Collation
 from pymongo.errors import BulkWriteError, DuplicateKeyError
 
 from app.models import NewsCollection, NewsEntry, Summary
@@ -20,20 +21,35 @@ from .db_client import DBClient
 
 logger = get_logger(__name__)
 
-# Two documents with the same title, source and scrape date are the same story.
-# The unique index created by `ensure_indexes` enforces this in the database.
-NEWS_UNIQUE_INDEX_NAME = "uniq_title_source_date"
-NEWS_UNIQUE_INDEX_KEYS: list[tuple[str, int]] = [
+# A news entry's identity is enforced by two unique indexes (see `ensure_indexes`):
+#   1. the article URL: the same story re-seen on a later day, or re-headlined,
+#      still has the same link;
+#   2. (title, source), compared case-insensitively: catches aggregator copies
+#      whose link is a redirect rather than the publisher's URL.
+# `date_scraped` is deliberately not part of the identity. Feeds keep items for
+# days, and the old (title, source, date_scraped) key stored them once per day.
+NEWS_LINK_INDEX_NAME = "uniq_link"
+NEWS_LINK_INDEX_KEYS: list[tuple[str, int]] = [("link", ASCENDING)]
+NEWS_TITLE_SOURCE_INDEX_NAME = "uniq_title_source"
+NEWS_TITLE_SOURCE_INDEX_KEYS: list[tuple[str, int]] = [
     ("title", ASCENDING),
     ("source", ASCENDING),
-    ("date_scraped", ASCENDING),
 ]
+CASE_INSENSITIVE = Collation(locale="en", strength=2)
+"""Collation for the (title, source) index and its lookups: ignores case and accents."""
+LEGACY_INDEX_NAMES: tuple[str, ...] = ("uniq_title_source_date",)
+"""Indexes from earlier identities; `ensure_indexes` drops any still present."""
 DUPLICATE_KEY_ERROR_CODE = 11000
 
 
-def _identity_key(entry: NewsEntry) -> tuple[str, str, str]:
-    """The fields that identify a news entry; mirrors `NEWS_UNIQUE_INDEX_KEYS`."""
-    return (entry.title, entry.source, entry.date_scraped)
+def _fold(text: str) -> str:
+    """Approximates the index collation in Python: case- and whitespace-insensitive."""
+    return " ".join(text.split()).casefold()
+
+
+def _identity_keys(entry: NewsEntry) -> tuple[str, tuple[str, str]]:
+    """The two keys that identify an entry, mirroring the unique indexes."""
+    return entry.link, (_fold(entry.title), _fold(entry.source))
 
 
 SEARCH_MAX_LENGTH = 100
@@ -87,12 +103,25 @@ class MongoClient(DBClient):
 
     @override
     async def ensure_indexes(self) -> None:
-        index_name = await self.news_db.create_index(
-            NEWS_UNIQUE_INDEX_KEYS,
-            name=NEWS_UNIQUE_INDEX_NAME,
-            unique=True,
+        existing = await self.news_db.index_information()
+        for legacy in LEGACY_INDEX_NAMES:
+            if legacy in existing:
+                await self.news_db.drop_index(legacy)
+                logger.info(f"Dropped legacy index {legacy!r} on {self.news_table}")
+
+        link_index = await self.news_db.create_index(
+            NEWS_LINK_INDEX_KEYS, name=NEWS_LINK_INDEX_NAME, unique=True
         )
-        logger.info(f"Ensured unique index {index_name!r} on {self.news_table}")
+        pair_index = await self.news_db.create_index(
+            NEWS_TITLE_SOURCE_INDEX_KEYS,
+            name=NEWS_TITLE_SOURCE_INDEX_NAME,
+            unique=True,
+            collation=CASE_INSENSITIVE,
+        )
+        logger.info(
+            f"Ensured unique indexes {link_index!r} and {pair_index!r} "
+            f"on {self.news_table}"
+        )
 
     async def is_unique_entry(self, entry: NewsEntry) -> bool:
         """Checks whether no stored entry shares this entry's identity.
@@ -101,15 +130,18 @@ class MongoClient(DBClient):
             entry (NewsEntry): The entry to look up.
 
         Returns:
-            bool: True if no document with the same (title, source, date_scraped) exists.
+            bool: True if no document has the same link, nor the same
+                (title, source) ignoring case.
         """
         return not bool(
             await self.news_db.find_one(
                 {
-                    "title": entry.title,
-                    "source": entry.source,
-                    "date_scraped": entry.date_scraped,
-                }
+                    "$or": [
+                        {"link": entry.link},
+                        {"title": entry.title, "source": entry.source},
+                    ]
+                },
+                collation=CASE_INSENSITIVE,
             )
         )
 
@@ -136,13 +168,17 @@ class MongoClient(DBClient):
     async def add_news_entries(self, news_collection: NewsCollection) -> int:
         # Dedupe within the batch first. The unique index would reject the second
         # copy anyway, but this keeps it out of the request and the logs.
-        unique_docs: dict[tuple[str, str, str], dict[str, Any]] = {}
+        docs: list[dict[str, Any]] = []
+        seen_links: set[str] = set()
+        seen_pairs: set[tuple[str, str]] = set()
         for entry in news_collection.entries:
-            key = _identity_key(entry)
-            if key not in unique_docs:
-                unique_docs[key] = entry.model_dump(by_alias=True, exclude={"id"})
+            link, pair = _identity_keys(entry)
+            if link in seen_links or pair in seen_pairs:
+                continue
+            seen_links.add(link)
+            seen_pairs.add(pair)
+            docs.append(entry.model_dump(by_alias=True, exclude={"id"}))
 
-        docs = list(unique_docs.values())
         in_batch_duplicates = len(news_collection.entries) - len(docs)
 
         if not docs:

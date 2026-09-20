@@ -129,7 +129,7 @@ def test_fixture_parses_to_valid_entries() -> None:
 def test_fixture_publishers_become_the_source() -> None:
     sources = {entry.source for entry in parse(load("googlenews.xml"), 200).entries}
 
-    assert {"Barbados Today", "BBC", "The Guardian", "Devon Live"} <= sources
+    assert {"Barbados Today", "BBC News", "The Guardian", "Devon Live"} <= sources
 
 
 def test_fixture_titles_lose_only_the_publisher_suffix() -> None:
@@ -142,7 +142,7 @@ def test_fixture_titles_lose_only_the_publisher_suffix() -> None:
     # An inner " - " that is not the publisher survives.
     assert (
         source_by_title["Barbados fatal crash court ruling 'extraordinary' - coroner"]
-        == "BBC"
+        == "BBC News"  # "BBC" from the feed, canonicalised to the label our own parser uses
     )
     # A publisher whose own name contains " - " is removed whole.
     assert (
