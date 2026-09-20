@@ -83,6 +83,20 @@ one name ("BBC" → "BBC News"); add a row there when a new spelling appears.
 Title alone is deliberately *not* the identity: different outlets' own articles
 under the same headline are different stories.
 
+The outlets' own feeds (`PRIMARY_PARSERS`) are fetched and stored before any
+aggregator (`AGGREGATOR_PARSERS`), so the copy kept is the one with a snippet and
+the publisher's link. Barbados Today's feed is read four pages deep for the same
+reason. When an outlet's copy is rejected as a duplicate of a stored copy that has
+no snippet (an earlier Google copy), the snippet, link and publish time are
+backfilled onto the stored document.
+
+## Ordering
+
+The feed is newest first by the publisher's own timestamp (`published_at`, from
+`pubDate` / Atom `published`), falling back to when we stored the entry
+(`created_at`) and, for rows older than that field, to `date_scraped`. Entries
+without a feed date are never given an invented one.
+
 ## Running & testing
 
 ### Environment variables

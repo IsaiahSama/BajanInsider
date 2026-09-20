@@ -153,18 +153,25 @@ def _strip_publisher_suffix(title: str, publisher: str) -> str:
     return title
 
 
-def _parse_published(raw: str) -> datetime | None:
-    """Parse an RFC 822 (RSS) or ISO 8601 (Atom) timestamp, or return ``None``."""
+def _parse_published(raw: str | None) -> datetime | None:
+    """Parse an RFC 822 (RSS) or ISO 8601 (Atom) timestamp as a UTC datetime.
+
+    Returns ``None`` for missing or unparsable input. A timestamp without a zone
+    is taken as UTC rather than left naive, so every stored value compares.
+    """
     if not raw:
         return None
+    parsed: datetime | None = None
     try:
-        return parsedate_to_datetime(raw)
+        parsed = parsedate_to_datetime(raw)
     except (TypeError, ValueError):
-        pass
-    try:
-        return datetime.fromisoformat(raw)
-    except ValueError:
-        return None
+        try:
+            parsed = datetime.fromisoformat(raw)
+        except ValueError:
+            return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
 
 
 # --------------------------------------------------------------------------- XML helpers
@@ -307,6 +314,7 @@ class PageParser(ABC):
         content: str | None,
         base_url: str,
         source: str | None = None,
+        published: str | None = None,
     ) -> NewsEntry | None:
         """Validate and normalise one item's fields into a :class:`NewsEntry`.
 
@@ -317,6 +325,7 @@ class PageParser(ABC):
             base_url: The URL relative links are resolved against.
             source: The label to store as the entry's source; defaults to ``source_name``.
                 Aggregators pass the item's own publisher here.
+            published: The feed's timestamp for the item (RFC 822 or ISO 8601), if any.
 
         Returns:
             The entry, or ``None`` when the title or link is missing or unusable.
@@ -340,6 +349,7 @@ class PageParser(ABC):
             source=canonical_source(source or cls.source_name),
             link=clean_link,
             date_scraped=today(),
+            published_at=_parse_published(published),
         )
 
     @classmethod
@@ -415,15 +425,13 @@ class RSSParser(PageParser):
             or _atom_alternate_href(item)
             or _permalink_guid(item)
         )
-        cls._log_published(
-            title, _child_text(item, "pubDate") or _child_text(item, "date")
-        )
         return cls.build_entry(
             title=title,
             link=link,
             content=cls._rss_item_content(item),
             base_url=base_url,
             source=source,
+            published=_child_text(item, "pubDate") or _child_text(item, "date"),
         )
 
     @classmethod
@@ -452,21 +460,13 @@ class RSSParser(PageParser):
         title = _child_text(entry, "title")
         link = _atom_alternate_href(entry)
         content = _child_text(entry, "summary") or _child_text(entry, "content")
-        cls._log_published(
-            title, _child_text(entry, "published") or _child_text(entry, "updated")
-        )
         return cls.build_entry(
-            title=title, link=link, content=content, base_url=base_url
+            title=title,
+            link=link,
+            content=content,
+            base_url=base_url,
+            published=_child_text(entry, "published") or _child_text(entry, "updated"),
         )
-
-    @classmethod
-    def _log_published(cls, title: str, raw_date: str) -> None:
-        """Record the item's publication time; the model has no field for it."""
-        published = _parse_published(raw_date)
-        if published is not None:
-            logger.debug(
-                "%s: %r published %s", cls.__name__, title, published.isoformat()
-            )
 
 
 # --------------------------------------------------------------------------- sources
@@ -494,7 +494,15 @@ class BarbadosTodayParser(RSSParser):
     """
 
     source_name: ClassVar[str] = "Barbados Today"
-    urls: ClassVar[list[str]] = ["https://barbadostoday.bb/feed/"]
+    # WordPress pages its feed; four pages cover the back-catalogue Google News
+    # tends to surface, so the outlet's own copies (with snippets and publisher
+    # links) are stored before the aggregator's snippet-less ones arrive.
+    urls: ClassVar[list[str]] = [
+        "https://barbadostoday.bb/feed/",
+        "https://barbadostoday.bb/feed/?paged=2",
+        "https://barbadostoday.bb/feed/?paged=3",
+        "https://barbadostoday.bb/feed/?paged=4",
+    ]
 
 
 class BBCBarbadosParser(RSSParser):

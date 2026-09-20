@@ -28,17 +28,21 @@ ENTRIES_PER_URL = 10
 """How many entries to keep from each fetched page, unless the parser sets
 ``entries_per_url``."""
 
-PARSERS: list[type[PageParser]] = [
+PRIMARY_PARSERS: list[type[PageParser]] = [
     NationNewsParser,
     BarbadosTodayParser,
     BBCBarbadosParser,
-    # The aggregator goes last so the outlets' own feeds are launched first and Google's
-    # overlapping items are the copies the unique index drops. Since run() gathers the
-    # sources concurrently this only fixes the launch order, not who finishes first; the
-    # index makes either outcome correct, the order just makes the common case tidy.
-    GoogleNewsRSSParser,
 ]
-"""Sources fetched on every run. Register a new parser here."""
+"""The outlets' own feeds. run() finishes these before starting any aggregator so
+their copies (with snippets and publisher links) are the ones stored; the
+aggregator's overlapping items are then the duplicates the unique index rejects,
+and add_news_entries() backfills any earlier snippet-less copy from them."""
+
+AGGREGATOR_PARSERS: list[type[PageParser]] = [GoogleNewsRSSParser]
+"""Feeds that re-surface other outlets' articles; run after PRIMARY_PARSERS."""
+
+PARSERS: list[type[PageParser]] = [*PRIMARY_PARSERS, *AGGREGATOR_PARSERS]
+"""Sources fetched on every run. Register a new parser in one of the two lists above."""
 
 DORMANT_PARSERS: list[type[PageParser]] = [LoopNewsParser, BarbadosAdvocateParser]
 """Implemented sources that are not fetched because the outlet is offline (see each class
@@ -81,7 +85,11 @@ async def scrape_source(
 async def run(
     parsers: Sequence[type[PageParser]] | None = None, amount: int = ENTRIES_PER_URL
 ) -> int:
-    """Scrape every URL of every parser concurrently over one shared session.
+    """Scrape every URL of every parser over one shared session, in two phases.
+
+    The outlets' own feeds are fetched concurrently and stored first; only then
+    are the aggregators fetched, so an outlet being slow can never let the
+    aggregator's copy of its article win the race into the database.
 
     Args:
         parsers: The parsers to run; defaults to :data:`PARSERS`.
@@ -92,22 +100,33 @@ async def run(
         The total number of entries parsed across all sources.
     """
     active = list(PARSERS if parsers is None else parsers)
-    targets = [(parser, url) for parser in active for url in parser.urls]
-    logger.info("Starting scrape job: sources=%d urls=%d", len(active), len(targets))
-
-    async with Scraper() as scraper:
-        results = await asyncio.gather(
-            *(scrape_source(scraper, parser, url, amount) for parser, url in targets),
-            return_exceptions=True,
-        )
+    phases = [
+        [parser for parser in active if parser not in AGGREGATOR_PARSERS],
+        [parser for parser in active if parser in AGGREGATOR_PARSERS],
+    ]
+    url_count = sum(len(parser.urls) for parser in active)
+    logger.info("Starting scrape job: sources=%d urls=%d", len(active), url_count)
 
     total = 0
-    for (parser, url), result in zip(targets, results, strict=True):
-        if isinstance(result, BaseException):
-            logger.error("source=%s url=%s failed: %r", parser.source_name, url, result)
-        else:
-            total += result
-    logger.info("Scrape job completed: urls=%d parsed=%d", len(targets), total)
+    async with Scraper() as scraper:
+        for phase in (phase for phase in phases if phase):
+            targets = [(parser, url) for parser in phase for url in parser.urls]
+            results = await asyncio.gather(
+                *(
+                    scrape_source(scraper, parser, url, amount)
+                    for parser, url in targets
+                ),
+                return_exceptions=True,
+            )
+            for (parser, url), result in zip(targets, results, strict=True):
+                if isinstance(result, BaseException):
+                    logger.error(
+                        "source=%s url=%s failed: %r", parser.source_name, url, result
+                    )
+                else:
+                    total += result
+
+    logger.info("Scrape job completed: urls=%d parsed=%d", url_count, total)
     return total
 
 

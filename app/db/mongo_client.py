@@ -55,11 +55,44 @@ def _identity_keys(entry: NewsEntry) -> tuple[str, tuple[str, str]]:
 SEARCH_MAX_LENGTH = 100
 """Longest search string passed to `$regex`; longer input is truncated."""
 
-NEWEST_FIRST: list[tuple[str, int]] = [
-    ("created_at", DESCENDING),
-    ("date_scraped", DESCENDING),
-]
-"""Sort order for feeds. Passed as one list: chaining `.sort()` calls replaces the previous key."""
+SORT_DATE: dict[str, Any] = {
+    "$ifNull": [
+        "$published_at",
+        "$created_at",
+        {
+            "$dateFromString": {
+                "dateString": "$date_scraped",
+                "onError": None,
+                "onNull": None,
+            }
+        },
+    ]
+}
+"""When an entry was published, as far as we know: the feed's own timestamp, else
+when we stored it, else the day it was scraped (rows that predate `created_at`)."""
+
+NEWEST_FIRST: dict[str, int] = {"_sort_date": DESCENDING, "created_at": DESCENDING}
+"""Feed order: by `SORT_DATE`, then by insertion time for entries sharing a date."""
+
+
+def _newest_first(
+    match: dict[str, Any], *, skip: int = 0, limit: int
+) -> list[dict[str, Any]]:
+    """An aggregation pipeline returning `match`ing entries newest first.
+
+    The sort key is computed per document because older rows lack `published_at`
+    (and the oldest lack `created_at`); `$ifNull` picks the best date each has.
+    """
+    pipeline: list[dict[str, Any]] = [
+        {"$match": match},
+        {"$addFields": {"_sort_date": SORT_DATE}},
+        {"$sort": NEWEST_FIRST},
+    ]
+    if skip:
+        pipeline.append({"$skip": skip})
+    pipeline += [{"$limit": limit}, {"$unset": "_sort_date"}]
+    return pipeline
+
 
 LOCK_ID = "summary_lock"
 """`_id` of the single document that acts as the summary-generation lock."""
@@ -188,6 +221,7 @@ class MongoClient(DBClient):
         # ordered=False makes the server attempt every document and report the
         # rejected ones together, instead of stopping at the first duplicate.
         skipped_existing = 0
+        backfilled = 0
         try:
             result = await self.news_db.insert_many(docs, ordered=False)
             inserted = len(result.inserted_ids)
@@ -209,13 +243,66 @@ class MongoClient(DBClient):
 
             skipped_existing = len(write_errors)
             inserted = int(details.get("nInserted", 0))
+            rejected = [
+                docs[e["index"]]
+                for e in write_errors
+                if isinstance(e.get("index"), int)
+            ]
+            backfilled = await self._backfill_empty_copies(rejected)
 
         logger.info(
             f"Bulk insert into {self.news_table}: inserted={inserted} "
             f"skipped_duplicates={in_batch_duplicates + skipped_existing} "
-            f"(in_batch={in_batch_duplicates}, already_stored={skipped_existing})"
+            f"(in_batch={in_batch_duplicates}, already_stored={skipped_existing}) "
+            f"backfilled={backfilled}"
         )
         return inserted
+
+    async def _backfill_empty_copies(self, rejected: list[dict[str, Any]]) -> int:
+        """Gives stored copies without a snippet the content of a rejected duplicate.
+
+        An aggregator's copy stored earlier has an empty snippet and a redirect
+        link. When the outlet's own copy arrives later and is rejected as a
+        duplicate, its snippet, link and publish time are copied onto the stored
+        document instead of being thrown away.
+
+        Args:
+            rejected (list[dict[str, Any]]): The documents the bulk insert rejected.
+
+        Returns:
+            int: How many stored documents were filled in.
+        """
+        filled = 0
+        for doc in rejected:
+            if not doc["content"].strip():
+                continue
+            same_story_without_snippet = {
+                "$or": [
+                    {"link": doc["link"]},
+                    {"title": doc["title"], "source": doc["source"]},
+                ],
+                "content": "",
+            }
+            fields: dict[str, Any] = {"content": doc["content"], "link": doc["link"]}
+            if doc.get("published_at") is not None:
+                fields["published_at"] = doc["published_at"]
+            try:
+                result = await self.news_db.update_one(
+                    same_story_without_snippet,
+                    {"$set": fields},
+                    collation=CASE_INSENSITIVE,
+                )
+            except DuplicateKeyError:
+                # The outlet's link is already on another stored copy; keep the
+                # stored link and still fill in the snippet.
+                del fields["link"]
+                result = await self.news_db.update_one(
+                    same_story_without_snippet,
+                    {"$set": fields},
+                    collation=CASE_INSENSITIVE,
+                )
+            filled += int(result.modified_count > 0)
+        return filled
 
     @override
     async def get_entry(self, entry_id: str | ObjectId) -> NewsEntry | None:
@@ -243,10 +330,10 @@ class MongoClient(DBClient):
             ]
         }
 
-        cursor = self.news_db.find(query)
+        cursor = self.news_db.aggregate(_newest_first(query, limit=100))
         results: list[NewsEntry] = []
 
-        for collection in await cursor.sort(NEWEST_FIRST).to_list(100):
+        for collection in await cursor.to_list(100):
             if collection:
                 collection: dict[str, Any]
                 results.append(NewsEntry(**collection))
@@ -257,13 +344,9 @@ class MongoClient(DBClient):
     async def get_entries(
         self, start: int = 0, limit: int = 50
     ) -> NewsCollection | None:
-        entries = (
-            await self.news_db.find()
-            .sort(NEWEST_FIRST)
-            .skip(start)
-            .limit(limit)
-            .to_list(limit)
-        )
+        entries = await self.news_db.aggregate(
+            _newest_first({}, skip=start, limit=limit)
+        ).to_list(limit)
 
         if entries:
             entries: list[dict[str, Any]]
@@ -271,9 +354,9 @@ class MongoClient(DBClient):
 
     @override
     async def get_all_entries(self) -> NewsCollection | None:
-        entries: list[dict[str, Any]] = (
-            await self.news_db.find().sort(NEWEST_FIRST).to_list(1000)
-        )
+        entries: list[dict[str, Any]] = await self.news_db.aggregate(
+            _newest_first({}, limit=1000)
+        ).to_list(1000)
 
         return (
             NewsCollection(entries=[NewsEntry(**entry) for entry in entries])
