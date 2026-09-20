@@ -1,10 +1,19 @@
+{# `search` is the active search term ("" for the plain feed). When set, every
+   page link must go back through the filter endpoint with the same term, or
+   page 2 of a search would silently show the unfiltered feed. #}
+{% set search = search | default("") %}
 {% if total_pages > 1 %}
 <div class="flex flex-col sm:flex-row justify-center items-center gap-4 sm:gap-2 mt-8 px-4">
     <!-- Previous button -->
     {% if has_prev %}
     <button
         class="w-full sm:w-auto px-6 sm:px-4 py-3 sm:py-2 text-lg sm:text-sm font-medium text-bajan-blue hover:text-bajan-yellow transition-colors duration-200 flex items-center justify-center space-x-2 sm:space-x-1 bg-white/80 backdrop-blur-sm rounded-lg shadow-sm hover:shadow-md"
-        hx-get="/htmx/entries?page={{ current_page - 1 }}" hx-target="#news">
+        {% if search %}
+        hx-post="/htmx/entries/filter?page={{ current_page - 1 }}" hx-vals='{{ {"search": search} | tojson }}'
+        {% else %}
+        hx-get="/htmx/entries?page={{ current_page - 1 }}"
+        {% endif %}
+        hx-target="#news">
         <svg class="w-5 h-5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
         </svg>
@@ -14,7 +23,7 @@
 
     <!-- Page numbers -->
     <div class="pagination-container hidden md:flex md:flex-row items-center gap-2 sm:gap-1"
-        data-current-page="{{ current_page }}" data-total-pages="{{ total_pages }}">
+        data-current-page="{{ current_page }}" data-total-pages="{{ total_pages }}" data-search="{{ search }}">
         <!-- Populated by script -->
     </div>
 
@@ -22,7 +31,12 @@
     {% if has_next %}
     <button
         class="w-full sm:w-auto px-6 sm:px-4 py-3 sm:py-2 text-lg sm:text-sm font-medium text-bajan-blue hover:text-bajan-yellow transition-colors duration-200 flex items-center justify-center space-x-2 sm:space-x-1 bg-white/80 backdrop-blur-sm rounded-lg shadow-sm hover:shadow-md"
-        hx-get="/htmx/entries?page={{ current_page + 1 }}" hx-target="#news">
+        {% if search %}
+        hx-post="/htmx/entries/filter?page={{ current_page + 1 }}" hx-vals='{{ {"search": search} | tojson }}'
+        {% else %}
+        hx-get="/htmx/entries?page={{ current_page + 1 }}"
+        {% endif %}
+        hx-target="#news">
         <span>Older</span>
         <svg class="w-5 h-5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
@@ -40,6 +54,7 @@
 
         const currentPage = parseInt(paginationContainer.dataset.currentPage, 10);
         const totalPages = parseInt(paginationContainer.dataset.totalPages, 10);
+        const search = paginationContainer.dataset.search || '';
 
         function createPageButton(page, isCurrent = false) {
             if (isCurrent) {
@@ -51,7 +66,13 @@
                 const button = document.createElement('button');
                 button.className = "w-12 sm:w-10 h-12 sm:h-10 flex items-center justify-center text-lg sm:text-base text-gray-700 hover:text-bajan-blue transition-colors duration-200 bg-white/80 backdrop-blur-sm rounded-lg hover:shadow-sm";
                 button.textContent = page;
-                button.setAttribute('hx-get', `/htmx/entries?page=${page}`);
+                if (search) {
+                    // Keep paging through the active search rather than the full feed.
+                    button.setAttribute('hx-post', `/htmx/entries/filter?page=${page}`);
+                    button.setAttribute('hx-vals', JSON.stringify({ search: search }));
+                } else {
+                    button.setAttribute('hx-get', `/htmx/entries?page=${page}`);
+                }
                 button.setAttribute('hx-target', '#news');
                 return button;
             }
@@ -93,8 +114,14 @@
         }
 
         renderPagination();
+        // htmx only wires up hx-* attributes it saw when the fragment was swapped in,
+        // so the buttons created above are inert until it is told about them.
+        if (window.htmx) {
+            htmx.process(paginationContainer);
+        }
         paginationContainer.removeAttribute('data-current-page');
         paginationContainer.removeAttribute('data-total-pages');
+        paginationContainer.removeAttribute('data-search');
     })();
 </script>
 {% endif %}

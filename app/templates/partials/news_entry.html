@@ -27,6 +27,8 @@
 
 	<!-- Card Footer with CTA -->
 	<div class="px-3 sm:px-6 py-4 bg-gradient-to-r from-bajan-yellow/5 to-bajan-blue/5 border-t border-gray-100">
+		{# Only link out to web addresses: a scraped `javascript:` or `data:` URL must never become clickable. #}
+		{% if entry.link.startswith(("http://", "https://")) %}
 		<a href="{{ entry.link }}"
 			class="flex items-center justify-between text-bajan-blue hover:text-bajan-yellow transition-colors duration-200 group/link w-full p-2 hover:bg-gray-50/50 rounded-lg"
 			target="_blank" rel="noopener noreferrer">
@@ -36,5 +38,10 @@
 				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
 			</svg>
 		</a>
+		{% else %}
+		<span class="flex items-center justify-between text-gray-500 w-full p-2">
+			<span class="font-medium text-lg sm:text-base">Read full article on {{ entry.source }}</span>
+		</span>
+		{% endif %}
 	</div>
 </article>
