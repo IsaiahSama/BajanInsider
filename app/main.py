@@ -1,26 +1,55 @@
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Annotated
+
 from fastapi import FastAPI, Form, Request
-from fastapi.templating import Jinja2Templates
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from jinja2 import Template
+from fastapi.templating import Jinja2Templates
 
 from app.db.mongo_client import client
 from app.models.news_collection import NewsCollection
-from app.models.news_entry import NewsEntry
-from app.services.summarize import summarize_latest_news
+from app.services.logger import get_logger
 from app.services.misc import update_sitemap_lastmod
+from app.services.summarize import summarize_latest_news
 
-app = FastAPI()
+# Anchor filesystem paths on the package directory so the app starts from any
+# working directory (the repo root or app/), not only from inside app/.
+BASE_DIR = Path(__file__).resolve().parent
+
+logger = get_logger(__name__)
 
 
-@app.on_event("startup")
-async def startup_event():
-    update_sitemap_lastmod()
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    """Runs the one-off startup work before the app begins serving requests.
+
+    Neither step is required to serve pages, so failures are logged and startup
+    continues rather than letting a database outage take the web tier down.
+    """
+    try:
+        update_sitemap_lastmod()
+    except Exception:
+        logger.exception(
+            "Failed to update the sitemap lastmod date; continuing startup"
+        )
+
+    try:
+        await client.ensure_indexes()
+    except Exception:
+        logger.exception(
+            "Failed to ensure database indexes; continuing startup without them"
+        )
+
+    yield
 
 
-app.mount("/public", StaticFiles(directory="public"), "public")
+app = FastAPI(lifespan=lifespan)
 
-templates = Jinja2Templates("templates")
+app.mount("/public", StaticFiles(directory=BASE_DIR / "public"), "public")
+
+templates = Jinja2Templates(BASE_DIR / "templates")
 
 
 @app.get("/")
@@ -35,24 +64,28 @@ async def get_entries(start: int = 0, limit: int = 50):
 
 # HTMX Routes
 
+ENTRIES_PER_PAGE = 30
 
-def render_partial(partial_name: str, context: dict[str, str | NewsEntry]) -> str:
-    """Renders a partial template with the provided context.
+
+def paginate(total_entries: int, page: int) -> dict[str, int | bool]:
+    """Builds the pagination context shared by the news feed partials.
 
     Args:
-        partial_name (str): The name of the partial to render.
-        context (dict[str, str]): The key value pairs to populate the template
+        total_entries (int): How many entries the feed can page through.
+        page (int): The 1-based page being rendered.
 
     Returns:
-        str: The rendered template as a string.
+        dict[str, int | bool]: `current_page`, `total_pages`, `has_next` and `has_prev`.
     """
 
-    template_path = "templates/partials/" + partial_name + ".html"
+    total_pages = (total_entries + ENTRIES_PER_PAGE - 1) // ENTRIES_PER_PAGE
 
-    with open(template_path, "r") as file:
-        template_content = file.read()
-        template = Template(template_content)
-        return template.render(**context)
+    return {
+        "current_page": page,
+        "total_pages": total_pages,
+        "has_next": page < total_pages,
+        "has_prev": page > 1,
+    }
 
 
 @app.get("/htmx/summary")
@@ -67,74 +100,66 @@ async def get_summary_htmx(request: Request):
 
 @app.get("/htmx/entries")
 async def get_entries_htmx(request: Request, page: int = 1):
-    rendered_entries: list[str] = []
-    ENTRIES_PER_PAGE = 30
+    page = max(page, 1)  # page <= 0 would otherwise turn into a negative skip()
     start = (page - 1) * ENTRIES_PER_PAGE
 
-    # Get total count for pagination
-    all_entries = await client.get_all_entries()
-    total_entries = len(all_entries.entries) if all_entries else 0
-    total_pages = (total_entries + ENTRIES_PER_PAGE - 1) // ENTRIES_PER_PAGE
+    # Count instead of fetching every document just to size the pagination.
+    total_entries = await client.count_entries()
 
-    # Get paginated entries
     news_collection: NewsCollection | None = await client.get_entries(
         start, ENTRIES_PER_PAGE
     )
+    entries = news_collection.entries if news_collection else []
 
-    if news_collection:
-        for entry in news_collection.entries:
-            rendered_entries.append(render_partial("news_entry", {"entry": entry}))
-
+    # Entries are passed as models and escaped by the template engine; never
+    # pre-render them to strings here, that path bypassed autoescaping.
     return templates.TemplateResponse(
         request,
         "partials/news_entries_list.html",
-        context={
-            "entries": rendered_entries,
-            "current_page": page,
-            "total_pages": total_pages,
-            "has_next": page < total_pages,
-            "has_prev": page > 1,
-        },
+        context={"entries": entries, "search": "", **paginate(total_entries, page)},
     )
 
 
-@app.post("/htmx/entries/filter/")
+@app.post("/htmx/entries/filter")
 async def filter_entries_htmx(
-    request: Request, search: Annotated[str, Form()], page: int = 1
+    request: Request, search: Annotated[str, Form()] = "", page: int = 1
 ):
-    rendered_entries: list[str] = []
-
+    # FastAPI treats an empty *required* form value as missing (422), so the
+    # default is what lets clearing the search box fall back to the full feed.
     if not search:
         return await get_entries_htmx(request, page)
 
     filtered_news_collection: NewsCollection | None = await client.find_entry(search)
+    matches = filtered_news_collection.entries if filtered_news_collection else []
 
-    if filtered_news_collection:
-        ENTRIES_PER_PAGE = 30
-        start = (page - 1) * ENTRIES_PER_PAGE
-        end = start + ENTRIES_PER_PAGE
-        total_entries = len(filtered_news_collection.entries)
-        total_pages = (total_entries + ENTRIES_PER_PAGE - 1) // ENTRIES_PER_PAGE
+    page = max(page, 1)
+    start = (page - 1) * ENTRIES_PER_PAGE
+    entries = matches[start : start + ENTRIES_PER_PAGE]
 
-        # Paginate the filtered entries
-        paginated_entries = filtered_news_collection.entries[start:end]
-        for entry in paginated_entries:
-            rendered_entries.append(render_partial("news_entry", {"entry": entry}))
-
-        return templates.TemplateResponse(
-            request,
-            "partials/news_entries_list.html",
-            context={
-                "entries": rendered_entries,
-                "current_page": page,
-                "total_pages": total_pages,
-                "has_next": page < total_pages,
-                "has_prev": page > 1,
-            },
-        )
-
+    # `search` goes back into the pagination links so that paging through a
+    # search keeps filtering instead of falling back to the full feed.
     return templates.TemplateResponse(
         request,
         "partials/news_entries_list.html",
-        context={"entries": rendered_entries},
+        context={
+            "entries": entries,
+            "search": search,
+            **paginate(len(matches), page),
+        },
     )
+
+
+# Crawler files. Static assets are mounted under /public, but robots.txt and
+# sitemap.xml are only honoured at the site root.
+
+PUBLIC_DIR = BASE_DIR / "public"
+
+
+@app.get("/robots.txt", include_in_schema=False)
+async def robots_txt():
+    return FileResponse(PUBLIC_DIR / "robots.txt", media_type="text/plain")
+
+
+@app.get("/sitemap.xml", include_in_schema=False)
+async def sitemap_xml():
+    return FileResponse(PUBLIC_DIR / "sitemap.xml", media_type="application/xml")

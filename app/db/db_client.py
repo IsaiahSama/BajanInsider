@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Any
 
-from app.models import NewsEntry, NewsCollection, LastUpdated
+from app.models import LastUpdated, NewsCollection, NewsEntry
 from app.models.summary import Summary
 
 
@@ -25,6 +25,17 @@ class DBClient(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    async def ensure_indexes(self) -> None:
+        """Creates the indexes this client relies on, if they do not already exist.
+
+        Must be idempotent and safe to run at every application start. Implementations
+        should at least enforce a unique index on the news entry identity
+        `(title, source, date_scraped)`, so bulk inserts can leave duplicate
+        rejection to the database instead of checking each entry first.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
     async def add_news_entry(self, news_entry: NewsEntry) -> NewsEntry | None:
         """Adds a news entry to the database.
 
@@ -38,14 +49,17 @@ class DBClient(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def add_news_entries(self, news_collection: NewsCollection) -> None:
+    async def add_news_entries(self, news_collection: NewsCollection) -> int:
         """Adds a collection of news entries to the database. To be used as a bulk operation.
+
+        Entries that duplicate another entry in the batch, or one already stored,
+        are skipped rather than treated as a failure.
 
         Args:
             news_collection (NewsCollection): The collection of NewsEntry to be added.
 
         Returns:
-            None
+            int: The number of entries actually inserted.
         """
         raise NotImplementedError
 
@@ -99,6 +113,15 @@ class DBClient(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    async def count_entries(self) -> int:
+        """Counts the news entries in the database without fetching them.
+
+        Returns:
+            int: The number of stored news entries.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
     async def create_last_updated_date(self) -> LastUpdated | None:
         """Sets a 'last_updated' date in the database.
         This is used to determine whether or not to run the scraping scripts.
@@ -125,7 +148,7 @@ class DBClient(ABC):
     async def update_last_updated_date(self) -> None:
         """Updates the last updated date with the current date using the %Y-%m-%d format"""
         raise NotImplementedError
-    
+
     @abstractmethod
     async def get_summary(self, title_hash: str) -> Summary | None:
         """Queries the database to get a Summary by title_hash
@@ -138,7 +161,7 @@ class DBClient(ABC):
             None: If no summary was found
         """
         raise NotImplementedError
-    
+
     @abstractmethod
     async def add_summary(self, title_hash: str, summary_text: str) -> Summary | None:
         """Adds a summary to the database.
@@ -155,18 +178,22 @@ class DBClient(ABC):
 
     @abstractmethod
     async def test_and_set(self) -> bool:
-        """Determines whether or not a new summary should be made
+        """Atomically tries to acquire the summary-generation lock.
+
+        Acquiring must be a single atomic operation so that concurrent callers
+        cannot both succeed. A lock held for longer than the staleness threshold
+        counts as free, so a crashed holder cannot strand it.
 
         Returns:
-            bool: Whether or not the operation should continue
+            bool: True if this caller now holds the lock and should generate the summary.
         """
         raise NotImplementedError
 
     @abstractmethod
     async def release_lock(self) -> None:
-        """Releases a lock made on the db
+        """Releases the summary-generation lock so another caller may acquire it.
 
-            Returns:
-                None
+        Returns:
+            None
         """
         raise NotImplementedError

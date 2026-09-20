@@ -1,5 +1,5 @@
-from pymongo import DESCENDING
-
+import re
+from datetime import UTC, datetime, timedelta
 from os import getenv
 from typing import Any, override
 
@@ -9,11 +9,47 @@ from motor.motor_asyncio import (
     AsyncIOMotorCollection,
     AsyncIOMotorDatabase,
 )
+from pymongo import ASCENDING, DESCENDING, ReturnDocument
+from pymongo.errors import BulkWriteError, DuplicateKeyError
 
+from app.models import NewsCollection, NewsEntry, Summary
 from app.models.last_updated import LastUpdated
+from app.services.logger import get_logger
 
 from .db_client import DBClient
-from app.models import NewsEntry, NewsCollection, Summary
+
+logger = get_logger(__name__)
+
+# Two documents with the same title, source and scrape date are the same story.
+# The unique index created by `ensure_indexes` enforces this in the database.
+NEWS_UNIQUE_INDEX_NAME = "uniq_title_source_date"
+NEWS_UNIQUE_INDEX_KEYS: list[tuple[str, int]] = [
+    ("title", ASCENDING),
+    ("source", ASCENDING),
+    ("date_scraped", ASCENDING),
+]
+DUPLICATE_KEY_ERROR_CODE = 11000
+
+
+def _identity_key(entry: NewsEntry) -> tuple[str, str, str]:
+    """The fields that identify a news entry; mirrors `NEWS_UNIQUE_INDEX_KEYS`."""
+    return (entry.title, entry.source, entry.date_scraped)
+
+
+SEARCH_MAX_LENGTH = 100
+"""Longest search string passed to `$regex`; longer input is truncated."""
+
+NEWEST_FIRST: list[tuple[str, int]] = [
+    ("created_at", DESCENDING),
+    ("date_scraped", DESCENDING),
+]
+"""Sort order for feeds. Passed as one list: chaining `.sort()` calls replaces the previous key."""
+
+LOCK_ID = "summary_lock"
+"""`_id` of the single document that acts as the summary-generation lock."""
+
+LOCK_STALE_SECONDS = 120
+"""A held lock older than this is treated as abandoned and may be re-acquired."""
 
 
 class MongoClient(DBClient):
@@ -49,7 +85,24 @@ class MongoClient(DBClient):
         self.test_set_db = self.db.get_collection(self.test_set_table)
         self.summary_cache_db = self.db.get_collection(self.summary_cache_table)
 
+    @override
+    async def ensure_indexes(self) -> None:
+        index_name = await self.news_db.create_index(
+            NEWS_UNIQUE_INDEX_KEYS,
+            name=NEWS_UNIQUE_INDEX_NAME,
+            unique=True,
+        )
+        logger.info(f"Ensured unique index {index_name!r} on {self.news_table}")
+
     async def is_unique_entry(self, entry: NewsEntry) -> bool:
+        """Checks whether no stored entry shares this entry's identity.
+
+        Args:
+            entry (NewsEntry): The entry to look up.
+
+        Returns:
+            bool: True if no document with the same (title, source, date_scraped) exists.
+        """
         return not bool(
             await self.news_db.find_one(
                 {
@@ -65,26 +118,68 @@ class MongoClient(DBClient):
         if not await self.is_unique_entry(news_entry):
             return None
 
-        new_entry = await self.news_db.insert_one(
-            news_entry.model_dump(by_alias=True, exclude={"id"})
-        )
+        try:
+            new_entry = await self.news_db.insert_one(
+                news_entry.model_dump(by_alias=True, exclude={"id"})
+            )
+        except DuplicateKeyError:
+            # Lost a race with another writer between the check and the insert;
+            # the unique index has the final say.
+            logger.info(
+                f"Skipped duplicate entry {news_entry.title!r} from {news_entry.source}"
+            )
+            return None
 
-        created_entry = await self.get_entry(new_entry.inserted_id)
-
-        return created_entry
+        return await self.get_entry(new_entry.inserted_id)
 
     @override
-    async def add_news_entries(self, news_collection: NewsCollection) -> None:
-        entries: list[dict[str, str]] = [
-            entry.model_dump(by_alias=True, exclude={"id"})
-            for entry in news_collection.entries
-            if await self.is_unique_entry(entry)
-        ]
+    async def add_news_entries(self, news_collection: NewsCollection) -> int:
+        # Dedupe within the batch first. The unique index would reject the second
+        # copy anyway, but this keeps it out of the request and the logs.
+        unique_docs: dict[tuple[str, str, str], dict[str, Any]] = {}
+        for entry in news_collection.entries:
+            key = _identity_key(entry)
+            if key not in unique_docs:
+                unique_docs[key] = entry.model_dump(by_alias=True, exclude={"id"})
 
-        if not entries:
-            return
+        docs = list(unique_docs.values())
+        in_batch_duplicates = len(news_collection.entries) - len(docs)
 
-        _ = await self.news_db.insert_many(entries)
+        if not docs:
+            logger.info("No news entries to insert")
+            return 0
+
+        # ordered=False makes the server attempt every document and report the
+        # rejected ones together, instead of stopping at the first duplicate.
+        skipped_existing = 0
+        try:
+            result = await self.news_db.insert_many(docs, ordered=False)
+            inserted = len(result.inserted_ids)
+        except BulkWriteError as error:
+            details = error.details or {}
+            write_errors: list[dict[str, Any]] = details.get("writeErrors", [])
+            other_errors = [
+                (e.get("index"), e.get("code"), e.get("errmsg"))
+                for e in write_errors
+                if e.get("code") != DUPLICATE_KEY_ERROR_CODE
+            ]
+            if other_errors:
+                logger.error(
+                    f"Bulk insert into {self.news_table} failed with "
+                    f"{len(other_errors)} non-duplicate write error(s) "
+                    f"(index, code, errmsg): {other_errors}"
+                )
+                raise
+
+            skipped_existing = len(write_errors)
+            inserted = int(details.get("nInserted", 0))
+
+        logger.info(
+            f"Bulk insert into {self.news_table}: inserted={inserted} "
+            f"skipped_duplicates={in_batch_duplicates + skipped_existing} "
+            f"(in_batch={in_batch_duplicates}, already_stored={skipped_existing})"
+        )
+        return inserted
 
     @override
     async def get_entry(self, entry_id: str | ObjectId) -> NewsEntry | None:
@@ -101,21 +196,21 @@ class MongoClient(DBClient):
 
     @override
     async def find_entry(self, search: str) -> NewsCollection | None:
+        # Match the user's text literally. Unescaped input such as `(a+)+$`
+        # makes the regex engine backtrack for a very long time, and the search
+        # box fires on every keystroke.
+        pattern = re.escape(search[:SEARCH_MAX_LENGTH])
         query = {
             "$or": [
-                {"title": {"$regex": search, "$options": "i"}},
-                {"content": {"$regex": search, "$options": "i"}},
+                {"title": {"$regex": pattern, "$options": "i"}},
+                {"content": {"$regex": pattern, "$options": "i"}},
             ]
         }
 
         cursor = self.news_db.find(query)
         results: list[NewsEntry] = []
 
-        for collection in (
-            await cursor.sort("created_at", DESCENDING)
-            .sort("date_scraped", DESCENDING)
-            .to_list(100)
-        ):
+        for collection in await cursor.sort(NEWEST_FIRST).to_list(100):
             if collection:
                 collection: dict[str, Any]
                 results.append(NewsEntry(**collection))
@@ -128,8 +223,7 @@ class MongoClient(DBClient):
     ) -> NewsCollection | None:
         entries = (
             await self.news_db.find()
-            .sort("created_at", DESCENDING)
-            .sort("date_scraped", DESCENDING)
+            .sort(NEWEST_FIRST)
             .skip(start)
             .limit(limit)
             .to_list(limit)
@@ -142,10 +236,7 @@ class MongoClient(DBClient):
     @override
     async def get_all_entries(self) -> NewsCollection | None:
         entries: list[dict[str, Any]] = (
-            await self.news_db.find()
-            .sort("created_at", DESCENDING)
-            .sort("date_scraped", DESCENDING)
-            .to_list(1000)
+            await self.news_db.find().sort(NEWEST_FIRST).to_list(1000)
         )
 
         return (
@@ -153,6 +244,10 @@ class MongoClient(DBClient):
             if entries
             else None
         )
+
+    @override
+    async def count_entries(self) -> int:
+        return await self.news_db.count_documents({})
 
     @override
     async def create_last_updated_date(self) -> LastUpdated | None:
@@ -176,8 +271,10 @@ class MongoClient(DBClient):
 
     @override
     async def update_last_updated_date(self) -> None:
-        _ = await self.last_updated_db.find_one_and_update(
-            filter={}, update={"$set": LastUpdated}
+        _ = await self.last_updated_db.update_one(
+            {},
+            {"$set": {"last_updated": LastUpdated().last_updated}},
+            upsert=True,
         )
 
     @override
@@ -204,24 +301,36 @@ class MongoClient(DBClient):
 
     @override
     async def test_and_set(self) -> bool:
-        db_lock_status = await self.test_set_db.find_one()
-        acquire_lock: bool = False
+        now = datetime.now(UTC)
+        stale_before = now - timedelta(seconds=LOCK_STALE_SECONDS)
 
-        if not db_lock_status:
-            acquire_lock = True
-            _ = await self.test_set_db.insert_one({"lock": "true"})
-        elif db_lock_status and db_lock_status["lock"] == "false":
-            acquire_lock = True
-            _ = await self.test_set_db.update_one({"_id": db_lock_status["_id"]}, { "$set": {'lock': "true"}}) 
-        else:
-            acquire_lock = False
+        # One find-and-modify is atomic on the server, so two concurrent callers
+        # cannot both see the lock as free. If the document exists but is held
+        # and fresh, the filter does not match and the upsert collides with the
+        # existing `_id`, which surfaces as DuplicateKeyError.
+        try:
+            lock = await self.test_set_db.find_one_and_update(
+                {
+                    "_id": LOCK_ID,
+                    "$or": [
+                        {"locked": False},
+                        {"acquired_at": {"$lt": stale_before}},
+                    ],
+                },
+                {"$set": {"locked": True, "acquired_at": now}},
+                upsert=True,
+                return_document=ReturnDocument.AFTER,
+            )
+        except DuplicateKeyError:
+            return False
 
-        return acquire_lock
+        return lock is not None
 
     @override
     async def release_lock(self) -> None:
-        _ = await self.test_set_db.find_one_and_update({}, {"$set": {"lock": "false"}}, upsert=True)
+        _ = await self.test_set_db.update_one(
+            {"_id": LOCK_ID}, {"$set": {"locked": False}}, upsert=True
+        )
 
 
 client = MongoClient()
-

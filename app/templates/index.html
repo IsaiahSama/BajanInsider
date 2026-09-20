@@ -67,10 +67,13 @@ Home
 	</div>
 </section>
 
-<section id="news" 
-    hx-get="/htmx/entries" 
+{# htmx:afterRequest bubbles up from the pagination links swapped into #news, so an
+   unguarded handler would re-request the AI summary on every page change. The
+   data-summary-requested flag makes it fire once, after the first entries load. #}
+<section id="news"
+    hx-get="/htmx/entries"
     hx-trigger="load"
-    hx-on::after-request="htmx.trigger('#ai_summary', 'summaryReady')"
+    hx-on::after-request="if (!this.dataset.summaryRequested) { this.dataset.summaryRequested = 'true'; htmx.trigger('#ai_summary', 'summaryReady'); }"
 	class="relative mt-6 p-2 sm:p-4 bg-white/80 backdrop-blur-sm rounded-lg shadow-sm w-full">
 	<div class="flex justify-center items-center min-h-[100px]">
 		<div class="text-gray-600 italic flex items-center space-x-2">
