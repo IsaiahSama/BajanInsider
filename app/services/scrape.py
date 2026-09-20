@@ -15,6 +15,7 @@ from .page_parser import (
     BarbadosAdvocateParser,
     BarbadosTodayParser,
     BBCBarbadosParser,
+    GoogleNewsRSSParser,
     LoopNewsParser,
     NationNewsParser,
     PageParser,
@@ -24,12 +25,18 @@ from .scraper import Scraper
 logger = get_logger(__name__)
 
 ENTRIES_PER_URL = 10
-"""How many entries to keep from each fetched page."""
+"""How many entries to keep from each fetched page, unless the parser sets
+``entries_per_url``."""
 
 PARSERS: list[type[PageParser]] = [
     NationNewsParser,
     BarbadosTodayParser,
     BBCBarbadosParser,
+    # The aggregator goes last so the outlets' own feeds are launched first and Google's
+    # overlapping items are the copies the unique index drops. Since run() gathers the
+    # sources concurrently this only fixes the launch order, not who finishes first; the
+    # index makes either outcome correct, the order just makes the common case tidy.
+    GoogleNewsRSSParser,
 ]
 """Sources fetched on every run. Register a new parser here."""
 
@@ -47,16 +54,18 @@ async def scrape_source(
         scraper: The entered scraper whose session is used for the request.
         parser: The source's parser class.
         url: The page or feed to fetch.
-        amount: The maximum number of entries to keep.
+        amount: The maximum number of entries to keep, unless the parser declares its own
+            ``entries_per_url``, which wins.
 
     Returns:
         The number of entries parsed. Any failure is logged and counts as zero so the
         caller can carry on with the other sources.
     """
     source = parser.source_name
+    limit = parser.entries_per_url or amount
     try:
         text = await scraper.fetch_text(url, timeout=parser.request_timeout)
-        collection = Scraper.get_news(text, parser, amount)
+        collection = Scraper.get_news(text, parser, limit)
         if collection is None:
             logger.warning("source=%s url=%s parsed=0", source, url)
             return 0
@@ -76,7 +85,8 @@ async def run(
 
     Args:
         parsers: The parsers to run; defaults to :data:`PARSERS`.
-        amount: The maximum number of entries to keep per URL.
+        amount: The maximum number of entries to keep per URL, for parsers that do not
+            set ``entries_per_url`` themselves.
 
     Returns:
         The total number of entries parsed across all sources.

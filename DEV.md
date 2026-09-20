@@ -10,7 +10,7 @@ Database: MongoDB
 
 ## Sources
 
-News is read from each outlet's own syndication feed, never from a search engine. Feeds are stable, permitted, and cheap; `app/services/page_parser.py` holds one parser class per source and `app/services/scrape.py` lists which ones run.
+News is read from syndication feeds, never scraped from a search engine's result pages: each outlet's own feed, plus the RSS feed Google News publishes for feed readers. Feeds are stable, permitted, and cheap; `app/services/page_parser.py` holds one parser class per source and `app/services/scrape.py` lists which ones run.
 
 Active sources (registered in `scrape.PARSERS`):
 
@@ -19,6 +19,9 @@ Active sources (registered in `scrape.PARSERS`):
 | Nation News (nationnews.com) | `NationNewsParser` | `https://nationnews.com/feed/` | RSS 2.0 (WordPress) | Use the apex domain: the site's own `<link rel="alternate">` points there (`www.` is slower still). The origin is uncached behind Cloudflare and takes 20–30 s to send its first byte, so the parser sets `request_timeout = 60` instead of the 20 s default. `utm_*` link parameters and the WordPress "The post … appeared first on …" footer are stripped. |
 | Barbados Today (barbadostoday.bb) | `BarbadosTodayParser` | `https://barbadostoday.bb/feed/` | RSS 2.0 (WordPress) | An Atom feed is also available at `/feed/atom/`; the parser accepts either. |
 | BBC News, Barbados topic | `BBCBarbadosParser` | `https://feeds.bbci.co.uk/news/topics/cp7r8vgl2jxt/rss.xml` | RSS 2.0 | Links point at bbc.co.uk with `at_medium`/`at_campaign` analytics parameters, which are stripped. |
+| Google News, search feed for "barbados news" | `GoogleNewsRSSParser` | `https://news.google.com/rss/search?q=barbados+news&hl=en-GB&gl=GB&ceid=GB:en` | RSS 2.0 (aggregator) | The sanctioned RSS surface of Google News, published for feed readers. It replaces the project's original scraper of `google.com/search?tbm=nws` result pages, removed in September 2026 because it broke constantly and violated Google's ToS; never fetch or parse `google.com/search` or `news.google.com` HTML. Up to 100 items per fetch, so the parser sets `entries_per_url = 40` (the old scraper took 4 pages × 10) instead of the job default of 10. Registered last in `PARSERS` so the outlets' own feeds are launched first (see the comment there). |
+
+Google News specifics. Google has no Barbados edition: `hl=en-BB&gl=BB&ceid=BB:en` is a 302 to the US edition. Of the two fallbacks, `en-GB` and `en-US` were equally relevant at capture (about 100/100 items about Barbados, ~70 of them from Barbados Today), so `en-GB` was chosen because its language matches the Barbadian English the site is written in and the `Accept-Language` the scraper already sends, and it surfaces more BBC/Guardian coverage and less US-domestic noise. The query stays `barbados news` (what the project used before); `q=barbados` alone returns mostly travel, cricket and air-quality pages (only ~12/100 items from Barbadian outlets). Items look like `<title>Headline - Publisher</title>` with a `<source>Publisher</source>` element, a `news.google.com/rss/articles/…` redirect as the link and a description that is only the headline again. The parser stores the `<source>` text as `source` and strips the ` - Publisher` suffix from the title, so a story Google surfaces from an outlet that is already a first-party source has the same `(title, source, date_scraped)` key and is dropped by the unique index (Google labels the BBC as "BBC", not "BBC News", so those two do not collapse). The redirect link is kept as-is (it resolves in a browser; decoding it offline is unreliable) and `content` is empty. Tuning knob: `when:2d` inside `q` (`q=barbados+news+when:2d`) limits the feed to the last two days, roughly 40–50 items at capture; it is off because the job runs twice a day and the index dedupes across runs.
 
 Dormant sources (implemented, kept in `scrape.DORMANT_PARSERS`, not fetched):
 
@@ -29,7 +32,7 @@ Dormant sources (implemented, kept in `scrape.DORMANT_PARSERS`, not fetched):
 
 If a dormant outlet comes back, move its class from `DORMANT_PARSERS` to `PARSERS`. No source currently needs an HTML fallback; if one ever lacks a feed, subclass `PageParser` directly and scrape its listing page with BeautifulSoup using shallow, semantic selectors (`article`, `h2 a`).
 
-Adding a new source: subclass `RSSParser` in `page_parser.py`, set `source_name` (the label readers see) and `urls` (the feed URLs to fetch), then append the class to `PARSERS` in `scrape.py`. Capture one real response into `tests/fixtures/<source>.xml` and add it to `FIXTURE_FOR` in `tests/test_parsers.py`; the shared parametrised tests cover it from there. Only override `parse_entries` when a feed needs special handling.
+Adding a new source: subclass `RSSParser` in `page_parser.py`, set `source_name` (the label readers see) and `urls` (the feed URLs to fetch), then append the class to `PARSERS` in `scrape.py`. Capture one real response into `tests/fixtures/<source>.xml` and add it to `FIXTURE_FOR` in `tests/test_parsers.py`; the shared parametrised tests cover it from there. Set `entries_per_url` only when a feed should contribute more or fewer entries than the job default (`scrape.ENTRIES_PER_URL`, 10). Only override `parse_entries` when a feed needs special handling; an aggregator whose items come from many outlets overrides the `RSSParser` per-item hooks (`_rss_item_title_and_source`, `_rss_item_content`) instead, as `GoogleNewsRSSParser` does.
 
 ## Gathering of information
 
