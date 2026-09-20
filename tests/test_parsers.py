@@ -132,8 +132,12 @@ def test_barbados_today_atom_variant_matches_rss() -> None:
     assert rss is not None
     assert atom is not None
     assert len(atom.entries) >= 5
-    assert {entry.link for entry in atom.entries} == {entry.link for entry in rss.entries}
-    assert {entry.title for entry in atom.entries} == {entry.title for entry in rss.entries}
+    assert {entry.link for entry in atom.entries} == {
+        entry.link for entry in rss.entries
+    }
+    assert {entry.title for entry in atom.entries} == {
+        entry.title for entry in rss.entries
+    }
 
 
 def test_advocate_fixture_is_escaped_drupal_rss() -> None:
@@ -159,7 +163,13 @@ def test_empty_feed_returns_none() -> None:
 
 @pytest.mark.parametrize(
     "text",
-    ["", "   ", "<html><body><h1>Not a feed</h1></body></html>", "<rss><channel><item>", "﻿\x00"],
+    [
+        "",
+        "   ",
+        "<html><body><h1>Not a feed</h1></body></html>",
+        "<rss><channel><item>",
+        "﻿\x00",
+    ],
     ids=["empty", "blank", "html", "truncated-xml", "garbage"],
 )
 def test_invalid_input_returns_none(text: str) -> None:
@@ -206,7 +216,9 @@ def test_minimal_atom_feed() -> None:
 
 
 def test_xml_declaration_with_foreign_encoding_is_tolerated() -> None:
-    text = load("duplicate_links.xml").replace('encoding="UTF-8"', 'encoding="ISO-8859-1"')
+    text = load("duplicate_links.xml").replace(
+        'encoding="UTF-8"', 'encoding="ISO-8859-1"'
+    )
 
     collection = ExampleFeedParser.parse_entries(text, 10)
 
@@ -218,7 +230,10 @@ def test_xml_declaration_with_foreign_encoding_is_tolerated() -> None:
 
 
 def test_strip_html_removes_tags_and_unescapes_entities() -> None:
-    assert strip_html("<p>Tom &amp; Jerry&#8217;s <b>day</b> out</p>") == "Tom & Jerry’s day out"
+    assert (
+        strip_html("<p>Tom &amp; Jerry&#8217;s <b>day</b> out</p>")
+        == "Tom & Jerry’s day out"
+    )
 
 
 def test_strip_html_collapses_whitespace() -> None:
@@ -257,7 +272,11 @@ def test_truncate_default_limit_is_about_500() -> None:
 
 
 def _fixture_for_url() -> dict[str, str]:
-    return {url: load(FIXTURE_FOR[parser]) for parser in scrape.PARSERS for url in parser.urls}
+    return {
+        url: load(FIXTURE_FOR[parser])
+        for parser in scrape.PARSERS
+        for url in parser.urls
+    }
 
 
 def test_registry_lists_live_parsers_and_keeps_dormant_ones_out() -> None:
@@ -288,9 +307,13 @@ async def test_run_stores_one_collection_per_source_url() -> None:
         assert not call.kwargs
         assert isinstance(call.args[0], NewsCollection)
         assert call.args[0].entries
-    assert total == sum(len(call.args[0].entries) for call in add_news_entries.await_args_list)
+    assert total == sum(
+        len(call.args[0].entries) for call in add_news_entries.await_args_list
+    )
 
-    timeout_for_url = {url: parser.request_timeout for parser in scrape.PARSERS for url in parser.urls}
+    timeout_for_url = {
+        url: parser.request_timeout for parser in scrape.PARSERS for url in parser.urls
+    }
     assert fetch_text.await_count == len(fixtures)
     for call in fetch_text.await_args_list:
         assert call.kwargs["timeout"] == timeout_for_url[call.args[0]]
@@ -322,9 +345,14 @@ async def test_one_failing_source_does_not_abort_the_others() -> None:
         total = await scrape.run()
 
     assert add_news_entries.await_count == len(fixtures) - len(failing_urls)
-    stored_sources = {call.args[0].entries[0].source for call in add_news_entries.await_args_list}
+    stored_sources = {
+        call.args[0].entries[0].source for call in add_news_entries.await_args_list
+    }
     assert NationNewsParser.source_name not in stored_sources
-    assert {BarbadosTodayParser.source_name, BBCBarbadosParser.source_name} <= stored_sources
+    assert {
+        BarbadosTodayParser.source_name,
+        BBCBarbadosParser.source_name,
+    } <= stored_sources
     assert total > 0
 
 
@@ -354,7 +382,9 @@ async def test_db_failure_for_one_source_is_isolated() -> None:
 async def test_run_with_parser_whose_fetch_returns_nothing_parsable() -> None:
     add_news_entries = AsyncMock()
     with (
-        patch.object(Scraper, "fetch_text", new=AsyncMock(return_value="<html>down</html>")),
+        patch.object(
+            Scraper, "fetch_text", new=AsyncMock(return_value="<html>down</html>")
+        ),
         patch.object(scrape.client, "add_news_entries", new=add_news_entries),
     ):
         total = await scrape.run()

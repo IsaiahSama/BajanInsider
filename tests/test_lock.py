@@ -1,11 +1,6 @@
 """Tests for the atomic summary lock in MongoClient (finding 5)."""
 
 import asyncio
-import os
-
-os.environ.setdefault("MONGODB_URL", "mongodb://localhost:27017")
-os.environ.setdefault("GEMINI_API_KEY", "test")
-
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock

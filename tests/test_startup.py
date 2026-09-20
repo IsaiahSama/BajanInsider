@@ -6,9 +6,6 @@ import sys
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
-os.environ.setdefault("MONGODB_URL", "mongodb://localhost:27017")
-os.environ.setdefault("GEMINI_API_KEY", "test")
-
 import pytest
 from fastapi.testclient import TestClient
 

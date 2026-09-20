@@ -26,7 +26,11 @@ logger = get_logger(__name__)
 ENTRIES_PER_URL = 10
 """How many entries to keep from each fetched page."""
 
-PARSERS: list[type[PageParser]] = [NationNewsParser, BarbadosTodayParser, BBCBarbadosParser]
+PARSERS: list[type[PageParser]] = [
+    NationNewsParser,
+    BarbadosTodayParser,
+    BBCBarbadosParser,
+]
 """Sources fetched on every run. Register a new parser here."""
 
 DORMANT_PARSERS: list[type[PageParser]] = [LoopNewsParser, BarbadosAdvocateParser]
@@ -99,6 +103,13 @@ async def run(
 
 async def main() -> None:
     """Entry point for the twice-daily job."""
+    # The web tier creates this index at boot, but the scraper is its own
+    # process and relies on it for cross-run deduplication.
+    try:
+        await client.ensure_indexes()
+    except Exception:
+        logger.exception("Failed to ensure database indexes; continuing without them")
+
     await run()
 
 

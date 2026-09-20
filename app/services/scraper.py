@@ -60,7 +60,9 @@ class Scraper:
 
     async def __aenter__(self) -> Self:
         if self._session is None:
-            self._session = aiohttp.ClientSession(headers=DEFAULT_HEADERS, timeout=REQUEST_TIMEOUT)
+            self._session = aiohttp.ClientSession(
+                headers=DEFAULT_HEADERS, timeout=REQUEST_TIMEOUT
+            )
         return self
 
     async def __aexit__(
@@ -77,7 +79,9 @@ class Scraper:
     def session(self) -> aiohttp.ClientSession:
         """The live session; raises if the scraper has not been entered."""
         if self._session is None:
-            raise RuntimeError("Scraper must be used as 'async with Scraper() as scraper'")
+            raise RuntimeError(
+                "Scraper must be used as 'async with Scraper() as scraper'"
+            )
         return self._session
 
     @retry(
@@ -109,11 +113,15 @@ class Scraper:
         async with self.session.get(url, **request_options) as response:
             response.raise_for_status()
             text = await response.text()
-        logger.info("Fetched %s: HTTP %d, %d characters", url, response.status, len(text))
+        logger.info(
+            "Fetched %s: HTTP %d, %d characters", url, response.status, len(text)
+        )
         return text
 
     @staticmethod
-    def get_news(text: str, parser: type[PageParser], amount: int) -> NewsCollection | None:
+    def get_news(
+        text: str, parser: type[PageParser], amount: int
+    ) -> NewsCollection | None:
         """Parse fetched text with ``parser`` and log how many entries came out.
 
         Args:

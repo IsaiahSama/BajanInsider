@@ -9,7 +9,6 @@ use the ``mock_db`` fixture, which replaces the singleton's async methods.
 """
 
 import os
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -21,30 +20,6 @@ os.environ.setdefault("MONGODB_URL", "mongodb://localhost:27017")
 os.environ.setdefault("GEMINI_API_KEY", "test")
 
 from app.models import NewsCollection, NewsEntry  # noqa: E402  (needs env above)
-
-_APP_DIR = Path(__file__).resolve().parent.parent / "app"
-_ORIGINAL_CWD = Path.cwd()
-
-
-def pytest_configure(config: pytest.Config) -> None:
-    """TEMPORARY: runs the suite from ``app/`` so that ``app.main`` can be imported.
-
-    ``app.main`` currently resolves ``public`` and ``templates`` relative to the
-    current working directory, so the application only imports with CWD=app/.
-    The paths are being anchored to the package in a parallel change; once that
-    has landed this hook and ``pytest_unconfigure`` can be deleted.
-
-    It is a hook rather than module-level code because pytest globs
-    ``testpaths`` against the CWD *after* loading this conftest; it still runs
-    before any test module is imported.
-    """
-    if not Path("public").is_dir() and (_APP_DIR / "public").is_dir():
-        os.chdir(_APP_DIR)
-
-
-def pytest_unconfigure(config: pytest.Config) -> None:
-    """Restores the working directory changed by ``pytest_configure``."""
-    os.chdir(_ORIGINAL_CWD)
 
 
 @pytest.fixture

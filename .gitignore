@@ -15,3 +15,6 @@ node_modules/
 
 # Agent worktrees
 .worktrees/
+
+# Claude Code agent worktrees
+.claude/

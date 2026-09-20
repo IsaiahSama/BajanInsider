@@ -1,17 +1,18 @@
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Annotated
+
 from fastapi import FastAPI, Form, Request
-from fastapi.templating import Jinja2Templates
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 
 from app.db.mongo_client import client
 from app.models.news_collection import NewsCollection
-from app.services.summarize import summarize_latest_news
-from app.services.misc import update_sitemap_lastmod
-from contextlib import asynccontextmanager
-from collections.abc import AsyncIterator
-from pathlib import Path
-from fastapi.responses import FileResponse
 from app.services.logger import get_logger
+from app.services.misc import update_sitemap_lastmod
+from app.services.summarize import summarize_latest_news
 
 # Anchor filesystem paths on the package directory so the app starts from any
 # working directory (the repo root or app/), not only from inside app/.
@@ -30,12 +31,16 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     try:
         update_sitemap_lastmod()
     except Exception:
-        logger.exception("Failed to update the sitemap lastmod date; continuing startup")
+        logger.exception(
+            "Failed to update the sitemap lastmod date; continuing startup"
+        )
 
     try:
         await client.ensure_indexes()
     except Exception:
-        logger.exception("Failed to ensure database indexes; continuing startup without them")
+        logger.exception(
+            "Failed to ensure database indexes; continuing startup without them"
+        )
 
     yield
 
@@ -95,6 +100,7 @@ async def get_summary_htmx(request: Request):
 
 @app.get("/htmx/entries")
 async def get_entries_htmx(request: Request, page: int = 1):
+    page = max(page, 1)  # page <= 0 would otherwise turn into a negative skip()
     start = (page - 1) * ENTRIES_PER_PAGE
 
     # Count instead of fetching every document just to size the pagination.
@@ -126,6 +132,7 @@ async def filter_entries_htmx(
     filtered_news_collection: NewsCollection | None = await client.find_entry(search)
     matches = filtered_news_collection.entries if filtered_news_collection else []
 
+    page = max(page, 1)
     start = (page - 1) * ENTRIES_PER_PAGE
     entries = matches[start : start + ENTRIES_PER_PAGE]
 

@@ -4,10 +4,6 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-
-os.environ.setdefault("MONGODB_URL", "mongodb://localhost:27017")
-os.environ.setdefault("GEMINI_API_KEY", "test")
-
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest

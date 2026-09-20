@@ -30,6 +30,10 @@ pythonpath = ["."]
 [tool.ruff]
 target-version = "py312"
 line-length = 88
+# Agent worktrees live under .claude/ inside the repo; they are other branches.
+extend-exclude = [".claude"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
+# `ruff format` enforces width on code; E501 only flags docstring/comment lines.
+ignore = ["E501"]

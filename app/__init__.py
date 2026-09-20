@@ -1,5 +1,6 @@
-from dotenv import load_dotenv
 from os import path
+
+from dotenv import load_dotenv
 
 root_dir = path.dirname(__file__)
 

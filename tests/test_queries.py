@@ -1,11 +1,6 @@
 """Tests for MongoClient query helpers (findings 2, 3, 7a and 11)."""
 
-import os
 import re
-
-os.environ.setdefault("MONGODB_URL", "mongodb://localhost:27017")
-os.environ.setdefault("GEMINI_API_KEY", "test")
-
 from datetime import datetime
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock

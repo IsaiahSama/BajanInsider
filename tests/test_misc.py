@@ -1,14 +1,10 @@
 """Tests for ``app.services.misc.update_sitemap_lastmod``."""
 
 import logging
-import os
 import shutil
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from pathlib import Path
-
-os.environ.setdefault("MONGODB_URL", "mongodb://localhost:27017")
-os.environ.setdefault("GEMINI_API_KEY", "test")
 
 from app.services.misc import DEFAULT_SITEMAP_PATH, update_sitemap_lastmod
 

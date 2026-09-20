@@ -1,10 +1,5 @@
 """Tests for the pydantic models (findings 4 and 7b)."""
 
-import os
-
-os.environ.setdefault("MONGODB_URL", "mongodb://localhost:27017")
-os.environ.setdefault("GEMINI_API_KEY", "test")
-
 from datetime import UTC, datetime, timedelta, tzinfo
 
 import pytest

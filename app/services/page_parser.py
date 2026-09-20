@@ -96,7 +96,9 @@ def normalise_link(href: str | None, base_url: str) -> str | None:
         for key, value in parse_qsl(parts.query, keep_blank_values=True)
         if not _is_tracking_param(key)
     ]
-    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
+    return urlunsplit(
+        (parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment)
+    )
 
 
 def today() -> str:
@@ -252,11 +254,15 @@ class PageParser(ABC):
         """
         clean_title = strip_html(title or "")
         if not clean_title:
-            logger.debug("%s: skipping item without a title (link=%r)", cls.__name__, link)
+            logger.debug(
+                "%s: skipping item without a title (link=%r)", cls.__name__, link
+            )
             return None
         clean_link = normalise_link(link, base_url)
         if clean_link is None:
-            logger.debug("%s: skipping %r, no usable link (%r)", cls.__name__, clean_title, link)
+            logger.debug(
+                "%s: skipping %r, no usable link (%r)", cls.__name__, clean_title, link
+            )
             return None
         snippet = truncate(_strip_wordpress_footer(strip_html(content or "")))
         return NewsEntry(
@@ -268,7 +274,9 @@ class PageParser(ABC):
         )
 
     @classmethod
-    def collect(cls, entries: Iterable[NewsEntry | None], n: int) -> NewsCollection | None:
+    def collect(
+        cls, entries: Iterable[NewsEntry | None], n: int
+    ) -> NewsCollection | None:
         """Keep the first ``n`` entries with distinct links, dropping ``None`` placeholders.
 
         Args:
@@ -316,10 +324,14 @@ class RSSParser(PageParser):
             channel = _first_child(root, "channel")
             base_url = _child_text(channel if channel is not None else root, "link")
             items = (el for el in root.iter() if _local_name(el.tag) == "item")
-            entries = (cls._rss_item(item, base_url or cls.base_url()) for item in items)
+            entries = (
+                cls._rss_item(item, base_url or cls.base_url()) for item in items
+            )
         elif kind == "feed":
             base_url = _atom_alternate_href(root) or cls.base_url()
-            entries = (cls._atom_entry(entry, base_url) for entry in _children(root, "entry"))
+            entries = (
+                cls._atom_entry(entry, base_url) for entry in _children(root, "entry")
+            )
         else:
             logger.warning("%s: unrecognised feed root <%s>", cls.__name__, kind)
             return None
@@ -329,13 +341,23 @@ class RSSParser(PageParser):
     def _rss_item(cls, item: ET.Element, base_url: str) -> NewsEntry | None:
         """Build an entry from an RSS ``<item>``."""
         title = _child_text(item, "title")
-        link = _child_text(item, "link") or _atom_alternate_href(item) or _permalink_guid(item)
+        link = (
+            _child_text(item, "link")
+            or _atom_alternate_href(item)
+            or _permalink_guid(item)
+        )
         description = _child_text(item, "description")
         # WordPress and Drupal sometimes put only an image in the excerpt; fall back to
         # the full body (content:encoded) so the snippet has something to show.
-        content = description if strip_html(description) else _child_text(item, "encoded")
-        cls._log_published(title, _child_text(item, "pubDate") or _child_text(item, "date"))
-        return cls.build_entry(title=title, link=link, content=content, base_url=base_url)
+        content = (
+            description if strip_html(description) else _child_text(item, "encoded")
+        )
+        cls._log_published(
+            title, _child_text(item, "pubDate") or _child_text(item, "date")
+        )
+        return cls.build_entry(
+            title=title, link=link, content=content, base_url=base_url
+        )
 
     @classmethod
     def _atom_entry(cls, entry: ET.Element, base_url: str) -> NewsEntry | None:
@@ -343,15 +365,21 @@ class RSSParser(PageParser):
         title = _child_text(entry, "title")
         link = _atom_alternate_href(entry)
         content = _child_text(entry, "summary") or _child_text(entry, "content")
-        cls._log_published(title, _child_text(entry, "published") or _child_text(entry, "updated"))
-        return cls.build_entry(title=title, link=link, content=content, base_url=base_url)
+        cls._log_published(
+            title, _child_text(entry, "published") or _child_text(entry, "updated")
+        )
+        return cls.build_entry(
+            title=title, link=link, content=content, base_url=base_url
+        )
 
     @classmethod
     def _log_published(cls, title: str, raw_date: str) -> None:
         """Record the item's publication time; the model has no field for it."""
         published = _parse_published(raw_date)
         if published is not None:
-            logger.debug("%s: %r published %s", cls.__name__, title, published.isoformat())
+            logger.debug(
+                "%s: %r published %s", cls.__name__, title, published.isoformat()
+            )
 
 
 # --------------------------------------------------------------------------- sources
@@ -390,7 +418,9 @@ class BBCBarbadosParser(RSSParser):
     """
 
     source_name: ClassVar[str] = "BBC News"
-    urls: ClassVar[list[str]] = ["https://feeds.bbci.co.uk/news/topics/cp7r8vgl2jxt/rss.xml"]
+    urls: ClassVar[list[str]] = [
+        "https://feeds.bbci.co.uk/news/topics/cp7r8vgl2jxt/rss.xml"
+    ]
 
 
 class LoopNewsParser(RSSParser):

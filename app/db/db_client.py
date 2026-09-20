@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Any
 
-from app.models import NewsEntry, NewsCollection, LastUpdated
+from app.models import LastUpdated, NewsCollection, NewsEntry
 from app.models.summary import Summary
 
 
@@ -148,7 +148,7 @@ class DBClient(ABC):
     async def update_last_updated_date(self) -> None:
         """Updates the last updated date with the current date using the %Y-%m-%d format"""
         raise NotImplementedError
-    
+
     @abstractmethod
     async def get_summary(self, title_hash: str) -> Summary | None:
         """Queries the database to get a Summary by title_hash
@@ -161,7 +161,7 @@ class DBClient(ABC):
             None: If no summary was found
         """
         raise NotImplementedError
-    
+
     @abstractmethod
     async def add_summary(self, title_hash: str, summary_text: str) -> Summary | None:
         """Adds a summary to the database.

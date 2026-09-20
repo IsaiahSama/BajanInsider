@@ -1,16 +1,5 @@
 """Tests for output escaping in the HTMX news feed (findings 1 and 9)."""
 
-import os
-from pathlib import Path
-
-os.environ.setdefault("MONGODB_URL", "mongodb://localhost:27017")
-os.environ.setdefault("GEMINI_API_KEY", "test")
-
-# The app currently resolves `templates/` and `public/` relative to the CWD.
-APP_DIR = Path(__file__).resolve().parents[1] / "app"
-if not (Path.cwd() / "public").is_dir():
-    os.chdir(APP_DIR)
-
 from unittest.mock import AsyncMock
 
 import pytest

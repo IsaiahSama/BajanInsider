@@ -5,12 +5,8 @@ only assert on the calls the client makes.
 """
 
 import logging
-import os
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
-
-os.environ.setdefault("MONGODB_URL", "mongodb://localhost:27017")
-os.environ.setdefault("GEMINI_API_KEY", "test")
 
 import pytest
 from bson import ObjectId

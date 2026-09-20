@@ -1,5 +1,5 @@
-from pymongo import DESCENDING
-
+import re
+from datetime import UTC, datetime, timedelta
 from os import getenv
 from typing import Any, override
 
@@ -9,15 +9,14 @@ from motor.motor_asyncio import (
     AsyncIOMotorCollection,
     AsyncIOMotorDatabase,
 )
-
-from app.models.last_updated import LastUpdated
-
-from .db_client import DBClient
-from app.models import NewsEntry, NewsCollection, Summary
-from pymongo import ASCENDING
+from pymongo import ASCENDING, DESCENDING, ReturnDocument
 from pymongo.errors import BulkWriteError, DuplicateKeyError
 
+from app.models import NewsCollection, NewsEntry, Summary
+from app.models.last_updated import LastUpdated
 from app.services.logger import get_logger
+
+from .db_client import DBClient
 
 logger = get_logger(__name__)
 
@@ -36,11 +35,6 @@ def _identity_key(entry: NewsEntry) -> tuple[str, str, str]:
     """The fields that identify a news entry; mirrors `NEWS_UNIQUE_INDEX_KEYS`."""
     return (entry.title, entry.source, entry.date_scraped)
 
-import re
-from datetime import UTC, datetime, timedelta
-
-from pymongo import ReturnDocument
-from pymongo.errors import DuplicateKeyError
 
 SEARCH_MAX_LENGTH = 100
 """Longest search string passed to `$regex`; longer input is truncated."""
@@ -340,4 +334,3 @@ class MongoClient(DBClient):
 
 
 client = MongoClient()
-
