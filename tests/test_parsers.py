@@ -20,6 +20,7 @@ from app.services.page_parser import (
     BarbadosAdvocateParser,
     BarbadosTodayParser,
     BBCBarbadosParser,
+    GoogleNewsRSSParser,
     LoopNewsParser,
     NationNewsParser,
     PageParser,
@@ -38,8 +39,11 @@ FIXTURE_FOR: dict[type[PageParser], str] = {
     BBCBarbadosParser: "bbc.xml",
     LoopNewsParser: "loopnews.xml",
     BarbadosAdvocateParser: "advocate.xml",
+    GoogleNewsRSSParser: "googlenews.xml",
 }
-ALL_PARSERS = list(FIXTURE_FOR)
+# The aggregator stores each item's publisher as ``source``, so the per-outlet checks
+# below do not apply to it; it has its own tests in ``test_google_news_parser.py``.
+ALL_PARSERS = [parser for parser in FIXTURE_FOR if parser is not GoogleNewsRSSParser]
 
 
 def load(name: str) -> str:
@@ -283,7 +287,7 @@ def test_registry_lists_live_parsers_and_keeps_dormant_ones_out() -> None:
     assert scrape.PARSERS
     assert all(issubclass(parser, PageParser) for parser in scrape.PARSERS)
     assert not set(scrape.PARSERS) & set(scrape.DORMANT_PARSERS)
-    assert set(scrape.PARSERS) | set(scrape.DORMANT_PARSERS) == set(ALL_PARSERS)
+    assert set(scrape.PARSERS) | set(scrape.DORMANT_PARSERS) == set(FIXTURE_FOR)
 
 
 @pytest.mark.asyncio

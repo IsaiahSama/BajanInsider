@@ -6,7 +6,9 @@ the preferred input and are handled generically by :class:`RSSParser`; a source 
 feed would subclass :class:`PageParser` directly and scrape its listing HTML with bs4.
 
 To add a source: subclass :class:`RSSParser` (or :class:`PageParser`), set ``source_name``
-and ``urls``, then register the class in ``app.services.scrape.PARSERS``.
+and ``urls``, then register the class in ``app.services.scrape.PARSERS``. An aggregator
+whose items come from many outlets overrides the small per-item hooks on
+:class:`RSSParser` instead of the whole walk (see :class:`GoogleNewsRSSParser`).
 """
 
 import html
@@ -36,6 +38,8 @@ _WHITESPACE_RE = re.compile(r"\s+")
 _XML_DECLARATION_RE = re.compile(r"^\s*<\?xml[^>]*\?>")
 _TRACKING_PARAM_PREFIXES = ("utm_",)
 _TRACKING_PARAMS = frozenset({"at_medium", "at_campaign"})  # BBC feed analytics
+_PUBLISHER_SEPARATOR = " - "
+"""What Google News puts between a headline and the publisher's name in ``<title>``."""
 
 
 # --------------------------------------------------------------------------- text helpers
@@ -116,6 +120,37 @@ def _strip_wordpress_footer(text: str) -> str:
     if start != -1 and " appeared first on " in text[start:]:
         return text[:start].rstrip()
     return text
+
+
+def _same_label(first: str, second: str) -> bool:
+    """Whether two publisher labels match, ignoring case and runs of whitespace."""
+    return (
+        _WHITESPACE_RE.sub(" ", first).strip().casefold()
+        == _WHITESPACE_RE.sub(" ", second).strip().casefold()
+    )
+
+
+def _strip_publisher_suffix(title: str, publisher: str) -> str:
+    """Remove a trailing ``" - <publisher>"`` from an aggregator headline.
+
+    Only the end of the title is considered, and only when the trailing segment (or
+    segments, for a publisher whose own name contains `` - ``) spells ``publisher`` under
+    :func:`_same_label`. An inner `` - `` that belongs to the headline is kept, and a title
+    that is nothing but the publisher is returned unchanged.
+
+    Args:
+        title: The cleaned headline, e.g. ``"Sugar arrangement in limbo - Barbados Today"``.
+        publisher: The publisher's label as the feed gives it.
+
+    Returns:
+        The headline without the publisher suffix, or ``title`` when it has none.
+    """
+    segments = title.split(_PUBLISHER_SEPARATOR)
+    for count in range(1, len(segments)):
+        tail = _PUBLISHER_SEPARATOR.join(segments[-count:])
+        if _same_label(tail, publisher):
+            return _PUBLISHER_SEPARATOR.join(segments[:-count]).strip()
+    return title
 
 
 def _parse_published(raw: str) -> datetime | None:
@@ -210,6 +245,8 @@ class PageParser(ABC):
     urls: ClassVar[list[str]]
     request_timeout: ClassVar[float | None] = None
     """Total seconds allowed per request, for slow origins; ``None`` uses the Scraper default."""
+    entries_per_url: ClassVar[int | None] = None
+    """Entries to keep from each of this source's URLs; ``None`` uses the job default."""
 
     @classmethod
     @abstractmethod
@@ -240,6 +277,7 @@ class PageParser(ABC):
         link: str | None,
         content: str | None,
         base_url: str,
+        source: str | None = None,
     ) -> NewsEntry | None:
         """Validate and normalise one item's fields into a :class:`NewsEntry`.
 
@@ -248,6 +286,8 @@ class PageParser(ABC):
             link: Raw link, absolute or relative.
             content: Raw description/summary HTML; ``None`` or empty gives an empty snippet.
             base_url: The URL relative links are resolved against.
+            source: The label to store as the entry's source; defaults to ``source_name``.
+                Aggregators pass the item's own publisher here.
 
         Returns:
             The entry, or ``None`` when the title or link is missing or unusable.
@@ -268,7 +308,7 @@ class PageParser(ABC):
         return NewsEntry(
             title=clean_title,
             content=snippet,
-            source=cls.source_name,
+            source=source or cls.source_name,
             link=clean_link,
             date_scraped=today(),
         )
@@ -340,24 +380,42 @@ class RSSParser(PageParser):
     @classmethod
     def _rss_item(cls, item: ET.Element, base_url: str) -> NewsEntry | None:
         """Build an entry from an RSS ``<item>``."""
-        title = _child_text(item, "title")
+        title, source = cls._rss_item_title_and_source(item)
         link = (
             _child_text(item, "link")
             or _atom_alternate_href(item)
             or _permalink_guid(item)
         )
-        description = _child_text(item, "description")
-        # WordPress and Drupal sometimes put only an image in the excerpt; fall back to
-        # the full body (content:encoded) so the snippet has something to show.
-        content = (
-            description if strip_html(description) else _child_text(item, "encoded")
-        )
         cls._log_published(
             title, _child_text(item, "pubDate") or _child_text(item, "date")
         )
         return cls.build_entry(
-            title=title, link=link, content=content, base_url=base_url
+            title=title,
+            link=link,
+            content=cls._rss_item_content(item),
+            base_url=base_url,
+            source=source,
         )
+
+    @classmethod
+    def _rss_item_title_and_source(cls, item: ET.Element) -> tuple[str, str]:
+        """The raw title of an RSS ``<item>`` and the source label to store with it.
+
+        Hook for aggregator feeds whose items come from many publishers. The default,
+        right for an outlet's own feed, is the ``<title>`` text and ``source_name``.
+        """
+        return _child_text(item, "title"), cls.source_name
+
+    @classmethod
+    def _rss_item_content(cls, item: ET.Element) -> str:
+        """The raw HTML an RSS ``<item>``'s snippet is cut from.
+
+        Hook for feeds whose description is not an excerpt. The default prefers the
+        ``<description>``; WordPress and Drupal sometimes put only an image there, so it
+        falls back to the full body (``content:encoded``) to give the snippet something.
+        """
+        description = _child_text(item, "description")
+        return description if strip_html(description) else _child_text(item, "encoded")
 
     @classmethod
     def _atom_entry(cls, entry: ET.Element, base_url: str) -> NewsEntry | None:
@@ -447,3 +505,62 @@ class BarbadosAdvocateParser(RSSParser):
 
     source_name: ClassVar[str] = "Barbados Advocate"
     urls: ClassVar[list[str]] = ["https://www.barbadosadvocate.com/rss.xml"]
+
+
+class GoogleNewsRSSParser(RSSParser):
+    """Google News search feed for "barbados news", RSS 2.0 — an aggregator, not an outlet.
+
+    This is the RSS surface Google publishes for feed readers and the only part of Google
+    the scraper touches; the original scraper of ``google.com/search?tbm=nws`` result pages
+    was removed because it broke constantly and violated Google's terms. Never fetch or
+    parse ``google.com/search`` or ``news.google.com`` HTML. Google has no Barbados edition
+    (``ceid=BB:en`` redirects to ``US:en``), so the ``en-GB`` edition is used: it was as
+    relevant as the US one at capture and its language matches the site's.
+
+    Items look like ``<title>Headline - Publisher</title>`` with a
+    ``<source url="…">Publisher</source>`` element, a ``news.google.com/rss/articles/…``
+    redirect as ``<link>`` and a ``<description>`` that is only the headline and publisher
+    again. Fields are derived as follows:
+
+    * ``source`` is the ``<source>`` text (the publisher), falling back to the title's
+      trailing `` - Publisher`` segment, then to ``source_name``. The unique index is on
+      ``(title, source, date_scraped)``, so a story Google surfaces from an outlet that is
+      already a first-party source gets the same key as that outlet's own entry and is
+      dropped as a duplicate — the desired outcome.
+    * ``title`` loses its trailing `` - Publisher`` only when that segment matches the
+      resolved source (case- and whitespace-insensitively); an inner `` - `` is kept.
+    * ``link`` is Google's redirect URL, kept as-is after :func:`normalise_link` (the
+      ``oc=5`` parameter stays). It resolves to the publisher in a browser; decoding it
+      offline is unreliable and the story is not fetched.
+    * ``content`` is empty: the description strips to "Headline Publisher", which is not a
+      snippet, and the card already shows the title and "Read full article on <source>".
+
+    The feed returns up to 100 items, so ``entries_per_url`` raises this source's cap to 40
+    (the old SERP scraper took 4 pages × 10). The job runs twice a day and the index
+    dedupes across runs, so the recency operator is left off; see ``urls``.
+    """
+
+    source_name: ClassVar[str] = "Google News"
+    urls: ClassVar[list[str]] = [
+        # Tuning knob: add ``+when:2d`` to ``q`` (``q=barbados+news+when:2d``) to limit
+        # the feed to the last two days; at capture that roughly halved it to 40-50 items.
+        "https://news.google.com/rss/search?q=barbados+news&hl=en-GB&gl=GB&ceid=GB:en"
+    ]
+    entries_per_url: ClassVar[int | None] = 40
+
+    @classmethod
+    @override
+    def _rss_item_title_and_source(cls, item: ET.Element) -> tuple[str, str]:
+        title = strip_html(_child_text(item, "title"))
+        publisher = strip_html(_child_text(item, "source"))
+        if publisher:
+            return _strip_publisher_suffix(title, publisher), publisher
+        headline, separator, suffix = title.rpartition(_PUBLISHER_SEPARATOR)
+        if separator and headline.strip() and suffix.strip():
+            return headline.strip(), suffix.strip()
+        return title, cls.source_name
+
+    @classmethod
+    @override
+    def _rss_item_content(cls, item: ET.Element) -> str:
+        return ""
