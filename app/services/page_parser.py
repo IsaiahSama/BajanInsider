@@ -231,6 +231,35 @@ def _parse_xml(text: str, parser_name: str) -> ET.Element | None:
 # --------------------------------------------------------------------------- base classes
 
 
+SOURCE_ALIASES: dict[str, str] = {
+    "bbc": "BBC News",
+    "bbc news": "BBC News",
+    "unesco": "UNESCO",
+    "mongabay": "Mongabay",
+    "news - mongabay": "Mongabay",
+    "nation news": "Nation News",
+    "nationnews.com": "Nation News",
+    "barbados today": "Barbados Today",
+    "barbadostoday.bb": "Barbados Today",
+}
+"""Publisher labels seen in the wild, mapped to the one name stored for that outlet.
+
+Keys are lower-cased and whitespace-collapsed. The database's secondary identity
+is ``(title, source)``, so an aggregator labelling the BBC "BBC" while the BBC's
+own feed is stored as "BBC News" would keep the same story twice. Add a row
+whenever a new spelling of a known outlet turns up.
+"""
+
+
+def canonical_source(name: str) -> str:
+    """Return the single stored label for a publisher.
+
+    Unknown labels are only whitespace-normalised; nothing is invented.
+    """
+    collapsed = " ".join(name.split())
+    return SOURCE_ALIASES.get(collapsed.casefold(), collapsed)
+
+
 class PageParser(ABC):
     """Base class for one news source.
 
@@ -308,7 +337,7 @@ class PageParser(ABC):
         return NewsEntry(
             title=clean_title,
             content=snippet,
-            source=source or cls.source_name,
+            source=canonical_source(source or cls.source_name),
             link=clean_link,
             date_scraped=today(),
         )

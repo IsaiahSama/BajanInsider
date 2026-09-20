@@ -13,7 +13,13 @@ from bson import ObjectId
 from pymongo import ASCENDING
 from pymongo.errors import BulkWriteError, DuplicateKeyError
 
-from app.db.mongo_client import NEWS_UNIQUE_INDEX_NAME, MongoClient
+from app.db.mongo_client import (
+    CASE_INSENSITIVE,
+    LEGACY_INDEX_NAMES,
+    NEWS_LINK_INDEX_NAME,
+    NEWS_TITLE_SOURCE_INDEX_NAME,
+    MongoClient,
+)
 from app.models import NewsCollection, NewsEntry
 
 LOGGER_NAME = "app.db.mongo_client"
@@ -43,7 +49,9 @@ def make_client() -> tuple[MongoClient, MagicMock]:
     news_db.insert_many = AsyncMock(return_value=SimpleNamespace(inserted_ids=[]))
     news_db.insert_one = AsyncMock()
     news_db.find_one = AsyncMock(return_value=None)
-    news_db.create_index = AsyncMock(return_value=NEWS_UNIQUE_INDEX_NAME)
+    news_db.create_index = AsyncMock(side_effect=lambda keys, **kw: kw["name"])
+    news_db.index_information = AsyncMock(return_value={"_id_": {}})
+    news_db.drop_index = AsyncMock()
     client.news_db = news_db
     return client, news_db
 
@@ -68,8 +76,9 @@ async def test_add_news_entries_dedupes_within_batch_and_inserts_once():
     client, news_db = make_client()
     duplicate = make_entry("Same story")
     other = make_entry("Different story")
-    # Same identity (title, source, date_scraped) but a different link/content
-    # must still be treated as the same article.
+    # Same (title, source) but a different link/content is still the same
+    # article: the secondary identity catches aggregator copies whose link is
+    # a redirect rather than the publisher URL.
     duplicate_variant = NewsEntry(
         title="Same story",
         content="Slightly different snippet",
@@ -151,20 +160,137 @@ async def test_add_news_entries_empty_batch_does_not_hit_the_database():
 
 
 @pytest.mark.asyncio
-async def test_ensure_indexes_creates_unique_identity_index():
+async def test_ensure_indexes_creates_link_and_title_source_indexes():
     client, news_db = make_client()
 
     await client.ensure_indexes()
 
-    news_db.create_index.assert_awaited_once()
-    args, kwargs = news_db.create_index.await_args
-    assert list(args[0]) == [
-        ("title", ASCENDING),
-        ("source", ASCENDING),
-        ("date_scraped", ASCENDING),
+    assert news_db.create_index.await_count == 2
+    (link_args, link_kwargs), (pair_args, pair_kwargs) = [
+        (call.args, call.kwargs) for call in news_db.create_index.await_args_list
     ]
-    assert kwargs.get("unique") is True
-    assert kwargs.get("name") == NEWS_UNIQUE_INDEX_NAME == "uniq_title_source_date"
+    # Primary identity: the article URL.
+    assert list(link_args[0]) == [("link", ASCENDING)]
+    assert link_kwargs.get("unique") is True
+    assert link_kwargs.get("name") == NEWS_LINK_INDEX_NAME == "uniq_link"
+    # Secondary identity: headline + outlet, compared case-insensitively so
+    # "BBC News"/"bbc news" and re-capitalised headlines collapse.
+    assert list(pair_args[0]) == [("title", ASCENDING), ("source", ASCENDING)]
+    assert pair_kwargs.get("unique") is True
+    assert (
+        pair_kwargs.get("name") == NEWS_TITLE_SOURCE_INDEX_NAME == "uniq_title_source"
+    )
+    assert pair_kwargs.get("collation") is CASE_INSENSITIVE
+    assert CASE_INSENSITIVE.document == {"locale": "en", "strength": 2}
+    news_db.drop_index.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_ensure_indexes_drops_the_legacy_date_index_when_present():
+    client, news_db = make_client()
+    news_db.index_information.return_value = {"_id_": {}, "uniq_title_source_date": {}}
+
+    await client.ensure_indexes()
+
+    assert "uniq_title_source_date" in LEGACY_INDEX_NAMES
+    news_db.drop_index.assert_awaited_once_with("uniq_title_source_date")
+
+
+@pytest.mark.asyncio
+async def test_add_news_entries_dedupes_same_link_regardless_of_title():
+    client, news_db = make_client()
+    first = make_entry("Original headline")
+    re_headlined = NewsEntry(
+        title="Updated headline",
+        content="",
+        source="Nation News",
+        link=first.link,
+        date_scraped="2026-09-21",
+    )
+
+    await client.add_news_entries(NewsCollection(entries=[first, re_headlined]))
+
+    (docs,), _ = news_db.insert_many.await_args
+    assert [doc["title"] for doc in docs] == ["Original headline"]
+
+
+@pytest.mark.asyncio
+async def test_add_news_entries_dedupes_title_and_source_case_insensitively():
+    client, news_db = make_client()
+    own_feed = NewsEntry(
+        title="Sugar arrangement in limbo",
+        content="",
+        source="BBC News",
+        link="https://www.bbc.co.uk/news/articles/abc",
+        date_scraped="2026-09-20",
+    )
+    via_aggregator = NewsEntry(
+        title="SUGAR ARRANGEMENT IN LIMBO",
+        content="",
+        source="bbc news",
+        link="https://news.google.com/rss/articles/xyz",
+        date_scraped="2026-09-20",
+    )
+
+    await client.add_news_entries(NewsCollection(entries=[own_feed, via_aggregator]))
+
+    (docs,), _ = news_db.insert_many.await_args
+    assert [doc["link"] for doc in docs] == ["https://www.bbc.co.uk/news/articles/abc"]
+
+
+@pytest.mark.asyncio
+async def test_add_news_entries_treats_same_story_seen_on_another_day_as_duplicate():
+    client, news_db = make_client()
+    monday = make_entry("Same story", date="2026-09-20")
+    tuesday = NewsEntry(
+        title="Same story",
+        content="",
+        source="Nation News",
+        link="https://example.com/republished",
+        date_scraped="2026-09-21",
+    )
+
+    await client.add_news_entries(NewsCollection(entries=[monday, tuesday]))
+
+    (docs,), _ = news_db.insert_many.await_args
+    assert len(docs) == 1
+
+
+@pytest.mark.asyncio
+async def test_add_news_entries_keeps_the_same_headline_from_different_outlets():
+    """Title alone is NOT identity: two outlets' own articles under one headline stay."""
+    client, news_db = make_client()
+    nation = make_entry("Barbados installs second president", source="Nation News")
+    observer = NewsEntry(
+        title="Barbados installs second president",
+        content="",
+        source="Jamaica Observer",
+        link="https://www.jamaicaobserver.com/2025/12/01/barbados-president/",
+        date_scraped="2026-09-20",
+    )
+
+    await client.add_news_entries(NewsCollection(entries=[nation, observer]))
+
+    (docs,), _ = news_db.insert_many.await_args
+    assert [doc["source"] for doc in docs] == ["Nation News", "Jamaica Observer"]
+
+
+@pytest.mark.asyncio
+async def test_is_unique_entry_matches_on_link_or_title_and_source():
+    client, news_db = make_client()
+    entry = make_entry("Existing")
+
+    assert await client.is_unique_entry(entry) is True
+
+    news_db.find_one.assert_awaited_once()
+    args, kwargs = news_db.find_one.await_args
+    assert args[0] == {
+        "$or": [
+            {"link": entry.link},
+            {"title": entry.title, "source": entry.source},
+        ]
+    }
+    assert kwargs.get("collation") is CASE_INSENSITIVE
 
 
 @pytest.mark.asyncio

@@ -30,7 +30,7 @@ class DBClient(ABC):
 
         Must be idempotent and safe to run at every application start. Implementations
         should at least enforce a unique index on the news entry identity
-        `(title, source, date_scraped)`, so bulk inserts can leave duplicate
+        the article `link` and, case-insensitively, `(title, source)`, so bulk inserts can leave duplicate
         rejection to the database instead of checking each entry first.
         """
         raise NotImplementedError
