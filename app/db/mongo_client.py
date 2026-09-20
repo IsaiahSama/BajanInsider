@@ -14,6 +14,27 @@ from app.models.last_updated import LastUpdated
 
 from .db_client import DBClient
 from app.models import NewsEntry, NewsCollection, Summary
+from pymongo import ASCENDING
+from pymongo.errors import BulkWriteError, DuplicateKeyError
+
+from app.services.logger import get_logger
+
+logger = get_logger(__name__)
+
+# Two documents with the same title, source and scrape date are the same story.
+# The unique index created by `ensure_indexes` enforces this in the database.
+NEWS_UNIQUE_INDEX_NAME = "uniq_title_source_date"
+NEWS_UNIQUE_INDEX_KEYS: list[tuple[str, int]] = [
+    ("title", ASCENDING),
+    ("source", ASCENDING),
+    ("date_scraped", ASCENDING),
+]
+DUPLICATE_KEY_ERROR_CODE = 11000
+
+
+def _identity_key(entry: NewsEntry) -> tuple[str, str, str]:
+    """The fields that identify a news entry; mirrors `NEWS_UNIQUE_INDEX_KEYS`."""
+    return (entry.title, entry.source, entry.date_scraped)
 
 
 class MongoClient(DBClient):
@@ -49,7 +70,24 @@ class MongoClient(DBClient):
         self.test_set_db = self.db.get_collection(self.test_set_table)
         self.summary_cache_db = self.db.get_collection(self.summary_cache_table)
 
+    @override
+    async def ensure_indexes(self) -> None:
+        index_name = await self.news_db.create_index(
+            NEWS_UNIQUE_INDEX_KEYS,
+            name=NEWS_UNIQUE_INDEX_NAME,
+            unique=True,
+        )
+        logger.info(f"Ensured unique index {index_name!r} on {self.news_table}")
+
     async def is_unique_entry(self, entry: NewsEntry) -> bool:
+        """Checks whether no stored entry shares this entry's identity.
+
+        Args:
+            entry (NewsEntry): The entry to look up.
+
+        Returns:
+            bool: True if no document with the same (title, source, date_scraped) exists.
+        """
         return not bool(
             await self.news_db.find_one(
                 {
@@ -65,26 +103,68 @@ class MongoClient(DBClient):
         if not await self.is_unique_entry(news_entry):
             return None
 
-        new_entry = await self.news_db.insert_one(
-            news_entry.model_dump(by_alias=True, exclude={"id"})
-        )
+        try:
+            new_entry = await self.news_db.insert_one(
+                news_entry.model_dump(by_alias=True, exclude={"id"})
+            )
+        except DuplicateKeyError:
+            # Lost a race with another writer between the check and the insert;
+            # the unique index has the final say.
+            logger.info(
+                f"Skipped duplicate entry {news_entry.title!r} from {news_entry.source}"
+            )
+            return None
 
-        created_entry = await self.get_entry(new_entry.inserted_id)
-
-        return created_entry
+        return await self.get_entry(new_entry.inserted_id)
 
     @override
-    async def add_news_entries(self, news_collection: NewsCollection) -> None:
-        entries: list[dict[str, str]] = [
-            entry.model_dump(by_alias=True, exclude={"id"})
-            for entry in news_collection.entries
-            if await self.is_unique_entry(entry)
-        ]
+    async def add_news_entries(self, news_collection: NewsCollection) -> int:
+        # Dedupe within the batch first. The unique index would reject the second
+        # copy anyway, but this keeps it out of the request and the logs.
+        unique_docs: dict[tuple[str, str, str], dict[str, Any]] = {}
+        for entry in news_collection.entries:
+            key = _identity_key(entry)
+            if key not in unique_docs:
+                unique_docs[key] = entry.model_dump(by_alias=True, exclude={"id"})
 
-        if not entries:
-            return
+        docs = list(unique_docs.values())
+        in_batch_duplicates = len(news_collection.entries) - len(docs)
 
-        _ = await self.news_db.insert_many(entries)
+        if not docs:
+            logger.info("No news entries to insert")
+            return 0
+
+        # ordered=False makes the server attempt every document and report the
+        # rejected ones together, instead of stopping at the first duplicate.
+        skipped_existing = 0
+        try:
+            result = await self.news_db.insert_many(docs, ordered=False)
+            inserted = len(result.inserted_ids)
+        except BulkWriteError as error:
+            details = error.details or {}
+            write_errors: list[dict[str, Any]] = details.get("writeErrors", [])
+            other_errors = [
+                (e.get("index"), e.get("code"), e.get("errmsg"))
+                for e in write_errors
+                if e.get("code") != DUPLICATE_KEY_ERROR_CODE
+            ]
+            if other_errors:
+                logger.error(
+                    f"Bulk insert into {self.news_table} failed with "
+                    f"{len(other_errors)} non-duplicate write error(s) "
+                    f"(index, code, errmsg): {other_errors}"
+                )
+                raise
+
+            skipped_existing = len(write_errors)
+            inserted = int(details.get("nInserted", 0))
+
+        logger.info(
+            f"Bulk insert into {self.news_table}: inserted={inserted} "
+            f"skipped_duplicates={in_batch_duplicates + skipped_existing} "
+            f"(in_batch={in_batch_duplicates}, already_stored={skipped_existing})"
+        )
+        return inserted
 
     @override
     async def get_entry(self, entry_id: str | ObjectId) -> NewsEntry | None:
