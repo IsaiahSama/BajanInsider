@@ -1,0 +1,17 @@
+# Secrets
+.env
+**/.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.ruff_cache/
+.pytest_cache/
+.pyright/
+
+# Node (Tailwind build)
+node_modules/
+
+# Agent worktrees
+.worktrees/
