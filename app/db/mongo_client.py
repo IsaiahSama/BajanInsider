@@ -259,12 +259,13 @@ class MongoClient(DBClient):
         return inserted
 
     async def _backfill_empty_copies(self, rejected: list[dict[str, Any]]) -> int:
-        """Gives stored copies without a snippet the content of a rejected duplicate.
+        """Fills in what a stored copy is missing from a rejected duplicate.
 
         An aggregator's copy stored earlier has an empty snippet and a redirect
-        link. When the outlet's own copy arrives later and is rejected as a
-        duplicate, its snippet, link and publish time are copied onto the stored
-        document instead of being thrown away.
+        link, and copies stored before publish dates were kept have no date. When
+        a duplicate is rejected, whatever it can supply, the snippet, the
+        publisher's link and the publish time, is copied onto the stored document
+        instead of being thrown away.
 
         Args:
             rejected (list[dict[str, Any]]): The documents the bulk insert rejected.
@@ -274,35 +275,43 @@ class MongoClient(DBClient):
         """
         filled = 0
         for doc in rejected:
-            if not doc["content"].strip():
-                continue
-            same_story_without_snippet = {
+            identity: dict[str, Any] = {
                 "$or": [
                     {"link": doc["link"]},
                     {"title": doc["title"], "source": doc["source"]},
-                ],
-                "content": "",
+                ]
             }
-            fields: dict[str, Any] = {"content": doc["content"], "link": doc["link"]}
-            if doc.get("published_at") is not None:
-                fields["published_at"] = doc["published_at"]
-            try:
-                result = await self.news_db.update_one(
-                    same_story_without_snippet,
-                    {"$set": fields},
-                    collation=CASE_INSENSITIVE,
+            touched = False
+            if doc["content"].strip():
+                touched = await self._fill_snippet(identity, doc)
+            if not touched and doc.get("published_at") is not None:
+                touched = await self._set_fields(
+                    {**identity, "published_at": None},
+                    {"published_at": doc["published_at"]},
                 )
-            except DuplicateKeyError:
-                # The outlet's link is already on another stored copy; keep the
-                # stored link and still fill in the snippet.
-                del fields["link"]
-                result = await self.news_db.update_one(
-                    same_story_without_snippet,
-                    {"$set": fields},
-                    collation=CASE_INSENSITIVE,
-                )
-            filled += int(result.modified_count > 0)
+            filled += int(touched)
         return filled
+
+    async def _fill_snippet(
+        self, identity: dict[str, Any], doc: dict[str, Any]
+    ) -> bool:
+        """Copies snippet, link and publish time onto a stored copy that has no snippet."""
+        fields: dict[str, Any] = {"content": doc["content"], "link": doc["link"]}
+        if doc.get("published_at") is not None:
+            fields["published_at"] = doc["published_at"]
+        try:
+            return await self._set_fields({**identity, "content": ""}, fields)
+        except DuplicateKeyError:
+            # The outlet's link is already on another stored copy; keep the
+            # stored link and still fill in the snippet.
+            del fields["link"]
+            return await self._set_fields({**identity, "content": ""}, fields)
+
+    async def _set_fields(self, where: dict[str, Any], fields: dict[str, Any]) -> bool:
+        result = await self.news_db.update_one(
+            where, {"$set": fields}, collation=CASE_INSENSITIVE
+        )
+        return result.modified_count > 0
 
     @override
     async def get_entry(self, entry_id: str | ObjectId) -> NewsEntry | None:

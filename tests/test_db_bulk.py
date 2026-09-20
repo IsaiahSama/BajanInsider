@@ -424,3 +424,69 @@ async def test_backfill_count_is_logged(caplog):
         await client.add_news_entries(NewsCollection(entries=[publisher_copy()]))
 
     assert "backfilled=1" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_rejected_duplicate_without_content_still_backfills_a_missing_publish_date():
+    """An aggregator copy brings no snippet but does bring the publisher's date;
+    a stored copy that has neither snippet nor date should at least get the date."""
+    client, news_db = make_client()
+    google_copy = NewsEntry(
+        title="Sugar arrangement in limbo",
+        content="",
+        source="Barbados Today",
+        link="https://news.google.com/rss/articles/abc",
+        date_scraped="2026-09-20",
+        published_at=datetime(2026, 9, 19, 8, tzinfo=UTC),
+    )
+    news_db.insert_many.side_effect = bulk_write_error(
+        [{"index": 0, "code": 11000, "errmsg": "E11000 duplicate key"}], 0
+    )
+
+    await client.add_news_entries(NewsCollection(entries=[google_copy]))
+
+    news_db.update_one.assert_awaited_once()
+    (filter_, update), kwargs = news_db.update_one.await_args
+    assert filter_ == {
+        "$or": [
+            {"link": google_copy.link},
+            {"title": google_copy.title, "source": google_copy.source},
+        ],
+        "published_at": None,
+    }
+    assert update == {"$set": {"published_at": google_copy.published_at}}
+    assert kwargs.get("collation") is CASE_INSENSITIVE
+
+
+@pytest.mark.asyncio
+async def test_publish_date_is_not_backfilled_again_when_the_snippet_update_set_it():
+    """The snippet backfill already writes published_at; no second write follows."""
+    client, news_db = make_client()
+    news_db.insert_many.side_effect = bulk_write_error(
+        [{"index": 0, "code": 11000, "errmsg": "E11000 duplicate key"}], 0
+    )
+
+    await client.add_news_entries(NewsCollection(entries=[publisher_copy()]))
+
+    news_db.update_one.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_publish_date_is_backfilled_when_the_stored_copy_already_had_a_snippet():
+    """Stored copy has content (so the snippet update matches nothing) but no
+    date; the rejected outlet copy's date is still written."""
+    client, news_db = make_client()
+    news_db.insert_many.side_effect = bulk_write_error(
+        [{"index": 0, "code": 11000, "errmsg": "E11000 duplicate key"}], 0
+    )
+    news_db.update_one.side_effect = [
+        SimpleNamespace(modified_count=0),  # nothing without a snippet to fill
+        SimpleNamespace(modified_count=1),  # but the date was missing
+    ]
+
+    await client.add_news_entries(NewsCollection(entries=[publisher_copy()]))
+
+    assert news_db.update_one.await_count == 2
+    (filter_, update), _ = news_db.update_one.await_args_list[1]
+    assert filter_["published_at"] is None
+    assert update == {"$set": {"published_at": publisher_copy().published_at}}
