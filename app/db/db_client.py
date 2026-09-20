@@ -99,6 +99,15 @@ class DBClient(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    async def count_entries(self) -> int:
+        """Counts the news entries in the database without fetching them.
+
+        Returns:
+            int: The number of stored news entries.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
     async def create_last_updated_date(self) -> LastUpdated | None:
         """Sets a 'last_updated' date in the database.
         This is used to determine whether or not to run the scraping scripts.
@@ -155,18 +164,22 @@ class DBClient(ABC):
 
     @abstractmethod
     async def test_and_set(self) -> bool:
-        """Determines whether or not a new summary should be made
+        """Atomically tries to acquire the summary-generation lock.
+
+        Acquiring must be a single atomic operation so that concurrent callers
+        cannot both succeed. A lock held for longer than the staleness threshold
+        counts as free, so a crashed holder cannot strand it.
 
         Returns:
-            bool: Whether or not the operation should continue
+            bool: True if this caller now holds the lock and should generate the summary.
         """
         raise NotImplementedError
 
     @abstractmethod
     async def release_lock(self) -> None:
-        """Releases a lock made on the db
+        """Releases the summary-generation lock so another caller may acquire it.
 
-            Returns:
-                None
+        Returns:
+            None
         """
         raise NotImplementedError

@@ -15,6 +15,27 @@ from app.models.last_updated import LastUpdated
 from .db_client import DBClient
 from app.models import NewsEntry, NewsCollection, Summary
 
+import re
+from datetime import UTC, datetime, timedelta
+
+from pymongo import ReturnDocument
+from pymongo.errors import DuplicateKeyError
+
+SEARCH_MAX_LENGTH = 100
+"""Longest search string passed to `$regex`; longer input is truncated."""
+
+NEWEST_FIRST: list[tuple[str, int]] = [
+    ("created_at", DESCENDING),
+    ("date_scraped", DESCENDING),
+]
+"""Sort order for feeds. Passed as one list: chaining `.sort()` calls replaces the previous key."""
+
+LOCK_ID = "summary_lock"
+"""`_id` of the single document that acts as the summary-generation lock."""
+
+LOCK_STALE_SECONDS = 120
+"""A held lock older than this is treated as abandoned and may be re-acquired."""
+
 
 class MongoClient(DBClient):
     """
@@ -101,21 +122,21 @@ class MongoClient(DBClient):
 
     @override
     async def find_entry(self, search: str) -> NewsCollection | None:
+        # Match the user's text literally. Unescaped input such as `(a+)+$`
+        # makes the regex engine backtrack for a very long time, and the search
+        # box fires on every keystroke.
+        pattern = re.escape(search[:SEARCH_MAX_LENGTH])
         query = {
             "$or": [
-                {"title": {"$regex": search, "$options": "i"}},
-                {"content": {"$regex": search, "$options": "i"}},
+                {"title": {"$regex": pattern, "$options": "i"}},
+                {"content": {"$regex": pattern, "$options": "i"}},
             ]
         }
 
         cursor = self.news_db.find(query)
         results: list[NewsEntry] = []
 
-        for collection in (
-            await cursor.sort("created_at", DESCENDING)
-            .sort("date_scraped", DESCENDING)
-            .to_list(100)
-        ):
+        for collection in await cursor.sort(NEWEST_FIRST).to_list(100):
             if collection:
                 collection: dict[str, Any]
                 results.append(NewsEntry(**collection))
@@ -128,8 +149,7 @@ class MongoClient(DBClient):
     ) -> NewsCollection | None:
         entries = (
             await self.news_db.find()
-            .sort("created_at", DESCENDING)
-            .sort("date_scraped", DESCENDING)
+            .sort(NEWEST_FIRST)
             .skip(start)
             .limit(limit)
             .to_list(limit)
@@ -142,10 +162,7 @@ class MongoClient(DBClient):
     @override
     async def get_all_entries(self) -> NewsCollection | None:
         entries: list[dict[str, Any]] = (
-            await self.news_db.find()
-            .sort("created_at", DESCENDING)
-            .sort("date_scraped", DESCENDING)
-            .to_list(1000)
+            await self.news_db.find().sort(NEWEST_FIRST).to_list(1000)
         )
 
         return (
@@ -153,6 +170,10 @@ class MongoClient(DBClient):
             if entries
             else None
         )
+
+    @override
+    async def count_entries(self) -> int:
+        return await self.news_db.count_documents({})
 
     @override
     async def create_last_updated_date(self) -> LastUpdated | None:
@@ -176,8 +197,10 @@ class MongoClient(DBClient):
 
     @override
     async def update_last_updated_date(self) -> None:
-        _ = await self.last_updated_db.find_one_and_update(
-            filter={}, update={"$set": LastUpdated}
+        _ = await self.last_updated_db.update_one(
+            {},
+            {"$set": {"last_updated": LastUpdated().last_updated}},
+            upsert=True,
         )
 
     @override
@@ -204,23 +227,36 @@ class MongoClient(DBClient):
 
     @override
     async def test_and_set(self) -> bool:
-        db_lock_status = await self.test_set_db.find_one()
-        acquire_lock: bool = False
+        now = datetime.now(UTC)
+        stale_before = now - timedelta(seconds=LOCK_STALE_SECONDS)
 
-        if not db_lock_status:
-            acquire_lock = True
-            _ = await self.test_set_db.insert_one({"lock": "true"})
-        elif db_lock_status and db_lock_status["lock"] == "false":
-            acquire_lock = True
-            _ = await self.test_set_db.update_one({"_id": db_lock_status["_id"]}, { "$set": {'lock': "true"}}) 
-        else:
-            acquire_lock = False
+        # One find-and-modify is atomic on the server, so two concurrent callers
+        # cannot both see the lock as free. If the document exists but is held
+        # and fresh, the filter does not match and the upsert collides with the
+        # existing `_id`, which surfaces as DuplicateKeyError.
+        try:
+            lock = await self.test_set_db.find_one_and_update(
+                {
+                    "_id": LOCK_ID,
+                    "$or": [
+                        {"locked": False},
+                        {"acquired_at": {"$lt": stale_before}},
+                    ],
+                },
+                {"$set": {"locked": True, "acquired_at": now}},
+                upsert=True,
+                return_document=ReturnDocument.AFTER,
+            )
+        except DuplicateKeyError:
+            return False
 
-        return acquire_lock
+        return lock is not None
 
     @override
     async def release_lock(self) -> None:
-        _ = await self.test_set_db.find_one_and_update({}, {"$set": {"lock": "false"}}, upsert=True)
+        _ = await self.test_set_db.update_one(
+            {"_id": LOCK_ID}, {"$set": {"locked": False}}, upsert=True
+        )
 
 
 client = MongoClient()
