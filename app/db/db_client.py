@@ -25,6 +25,17 @@ class DBClient(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    async def ensure_indexes(self) -> None:
+        """Creates the indexes this client relies on, if they do not already exist.
+
+        Must be idempotent and safe to run at every application start. Implementations
+        should at least enforce a unique index on the news entry identity
+        `(title, source, date_scraped)`, so bulk inserts can leave duplicate
+        rejection to the database instead of checking each entry first.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
     async def add_news_entry(self, news_entry: NewsEntry) -> NewsEntry | None:
         """Adds a news entry to the database.
 
@@ -38,14 +49,17 @@ class DBClient(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def add_news_entries(self, news_collection: NewsCollection) -> None:
+    async def add_news_entries(self, news_collection: NewsCollection) -> int:
         """Adds a collection of news entries to the database. To be used as a bulk operation.
+
+        Entries that duplicate another entry in the batch, or one already stored,
+        are skipped rather than treated as a failure.
 
         Args:
             news_collection (NewsCollection): The collection of NewsEntry to be added.
 
         Returns:
-            None
+            int: The number of entries actually inserted.
         """
         raise NotImplementedError
 

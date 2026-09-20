@@ -9,18 +9,43 @@ from app.models.news_collection import NewsCollection
 from app.models.news_entry import NewsEntry
 from app.services.summarize import summarize_latest_news
 from app.services.misc import update_sitemap_lastmod
+from contextlib import asynccontextmanager
+from collections.abc import AsyncIterator
+from pathlib import Path
+from app.services.logger import get_logger
 
-app = FastAPI()
+# Anchor filesystem paths on the package directory so the app starts from any
+# working directory (the repo root or app/), not only from inside app/.
+BASE_DIR = Path(__file__).resolve().parent
+
+logger = get_logger(__name__)
 
 
-@app.on_event("startup")
-async def startup_event():
-    update_sitemap_lastmod()
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    """Runs the one-off startup work before the app begins serving requests.
+
+    Neither step is required to serve pages, so failures are logged and startup
+    continues rather than letting a database outage take the web tier down.
+    """
+    try:
+        update_sitemap_lastmod()
+    except Exception:
+        logger.exception("Failed to update the sitemap lastmod date; continuing startup")
+
+    try:
+        await client.ensure_indexes()
+    except Exception:
+        logger.exception("Failed to ensure database indexes; continuing startup without them")
+
+    yield
 
 
-app.mount("/public", StaticFiles(directory="public"), "public")
+app = FastAPI(lifespan=lifespan)
 
-templates = Jinja2Templates("templates")
+app.mount("/public", StaticFiles(directory=BASE_DIR / "public"), "public")
+
+templates = Jinja2Templates(BASE_DIR / "templates")
 
 
 @app.get("/")
