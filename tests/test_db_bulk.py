@@ -5,6 +5,7 @@ only assert on the calls the client makes.
 """
 
 import logging
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -52,6 +53,7 @@ def make_client() -> tuple[MongoClient, MagicMock]:
     news_db.create_index = AsyncMock(side_effect=lambda keys, **kw: kw["name"])
     news_db.index_information = AsyncMock(return_value={"_id_": {}})
     news_db.drop_index = AsyncMock()
+    news_db.update_one = AsyncMock(return_value=SimpleNamespace(modified_count=1))
     client.news_db = news_db
     return client, news_db
 
@@ -329,3 +331,96 @@ async def test_add_news_entry_inserts_and_returns_created_entry():
     assert created.id == str(new_id)
     assert created.title == "Fresh"
     news_db.insert_one.assert_awaited_once()
+
+
+def publisher_copy() -> NewsEntry:
+    return NewsEntry(
+        title="Sugar arrangement in limbo",
+        content="A real snippet from the outlet's own feed.",
+        source="Barbados Today",
+        link="https://barbadostoday.bb/2026/09/20/sugar-arrangement-in-limbo/",
+        date_scraped="2026-09-20",
+        published_at=datetime(2026, 9, 20, 9, tzinfo=UTC),
+    )
+
+
+@pytest.mark.asyncio
+async def test_rejected_duplicate_with_content_backfills_an_empty_stored_copy():
+    """A Google copy stored earlier has no snippet; the outlet's copy fills it in."""
+    client, news_db = make_client()
+    publisher = publisher_copy()
+    news_db.insert_many.side_effect = bulk_write_error(
+        [{"index": 0, "code": 11000, "errmsg": "E11000 duplicate key"}], 0
+    )
+
+    inserted = await client.add_news_entries(NewsCollection(entries=[publisher]))
+
+    assert inserted == 0
+    news_db.update_one.assert_awaited_once()
+    (filter_, update), kwargs = news_db.update_one.await_args
+    assert filter_ == {
+        "$or": [
+            {"link": publisher.link},
+            {"title": publisher.title, "source": publisher.source},
+        ],
+        "content": "",
+    }
+    assert update == {
+        "$set": {
+            "content": publisher.content,
+            "link": publisher.link,
+            "published_at": publisher.published_at,
+        }
+    }
+    assert kwargs.get("collation") is CASE_INSENSITIVE
+
+
+@pytest.mark.asyncio
+async def test_rejected_duplicate_without_content_leaves_the_stored_copy_alone():
+    client, news_db = make_client()
+    google_copy = NewsEntry(
+        title="Sugar arrangement in limbo",
+        content="",
+        source="Barbados Today",
+        link="https://news.google.com/rss/articles/abc",
+        date_scraped="2026-09-20",
+    )
+    news_db.insert_many.side_effect = bulk_write_error(
+        [{"index": 0, "code": 11000, "errmsg": "E11000 duplicate key"}], 0
+    )
+
+    await client.add_news_entries(NewsCollection(entries=[google_copy]))
+
+    news_db.update_one.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_backfill_keeps_the_stored_link_when_the_publisher_link_is_taken():
+    client, news_db = make_client()
+    news_db.insert_many.side_effect = bulk_write_error(
+        [{"index": 0, "code": 11000, "errmsg": "E11000 duplicate key"}], 0
+    )
+    news_db.update_one.side_effect = [
+        DuplicateKeyError("uniq_link"),
+        SimpleNamespace(modified_count=1),
+    ]
+
+    await client.add_news_entries(NewsCollection(entries=[publisher_copy()]))
+
+    assert news_db.update_one.await_count == 2
+    (_, retry_update), _ = news_db.update_one.await_args_list[1]
+    assert "link" not in retry_update["$set"]
+    assert retry_update["$set"]["content"] == publisher_copy().content
+
+
+@pytest.mark.asyncio
+async def test_backfill_count_is_logged(caplog):
+    client, news_db = make_client()
+    news_db.insert_many.side_effect = bulk_write_error(
+        [{"index": 0, "code": 11000, "errmsg": "E11000 duplicate key"}], 0
+    )
+
+    with caplog.at_level(logging.INFO, logger=LOGGER_NAME):
+        await client.add_news_entries(NewsCollection(entries=[publisher_copy()]))
+
+    assert "backfilled=1" in caplog.text

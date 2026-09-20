@@ -6,6 +6,7 @@ captures; ``advocate.xml`` is the last archived copy of a defunct feed (Wayback,
 ``loopnews.xml`` is a labelled synthetic feed for a source that is currently offline.
 """
 
+import asyncio
 import re
 from pathlib import Path
 from typing import ClassVar
@@ -395,3 +396,49 @@ async def test_run_with_parser_whose_fetch_returns_nothing_parsable() -> None:
 
     assert total == 0
     add_news_entries.assert_not_awaited()
+
+
+def test_barbados_today_reads_four_pages_of_its_feed() -> None:
+    """Google surfaces BT back-catalogue beyond the 10 items on page 1; reading
+    deeper lets the outlet's own copies (with snippets) win over Google's."""
+    assert BarbadosTodayParser.urls == [
+        "https://barbadostoday.bb/feed/",
+        "https://barbadostoday.bb/feed/?paged=2",
+        "https://barbadostoday.bb/feed/?paged=3",
+        "https://barbadostoday.bb/feed/?paged=4",
+    ]
+
+
+def test_registry_splits_outlets_from_aggregators() -> None:
+    assert scrape.PARSERS == [*scrape.PRIMARY_PARSERS, *scrape.AGGREGATOR_PARSERS]
+    assert GoogleNewsRSSParser in scrape.AGGREGATOR_PARSERS
+    assert GoogleNewsRSSParser not in scrape.PRIMARY_PARSERS
+    assert {NationNewsParser, BarbadosTodayParser, BBCBarbadosParser} <= set(
+        scrape.PRIMARY_PARSERS
+    )
+
+
+@pytest.mark.asyncio
+async def test_run_finishes_the_outlets_own_feeds_before_starting_aggregators() -> None:
+    """The outlets' copies must be stored first so the aggregator's copies are the
+    ones the unique index rejects; a concurrent free-for-all would let the fast
+    aggregator win whenever an outlet is slow."""
+    fixtures = _fixture_for_url()
+    fetched: list[str] = []
+
+    async def fake_fetch(url: str, timeout: float | None = None) -> str:
+        if not url.startswith("https://news.google.com/"):
+            await asyncio.sleep(0.02)  # outlets are slow; the aggregator is instant
+        fetched.append(url)
+        return fixtures[url]
+
+    with (
+        patch.object(Scraper, "fetch_text", new=AsyncMock(side_effect=fake_fetch)),
+        patch.object(scrape.client, "add_news_entries", new=AsyncMock(return_value=0)),
+    ):
+        await scrape.run()
+
+    assert fetched[-1] == GoogleNewsRSSParser.urls[0]
+    assert set(fetched[:-1]) == {
+        url for parser in scrape.PRIMARY_PARSERS for url in parser.urls
+    }

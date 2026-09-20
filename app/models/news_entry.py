@@ -16,7 +16,7 @@ class NewsEntry(BaseModel, frozen=True):
     Model representing a news entry.
 
     Two entries are the same article when their `title`, `source` and `link`
-    match. `id`, `content` and `created_at` are deliberately left out of
+    match. `id`, `content`, `published_at` and `created_at` are left out of
     equality and hashing so that re-scraped articles deduplicate correctly.
     """
 
@@ -28,6 +28,8 @@ class NewsEntry(BaseModel, frozen=True):
     source: str
     link: str
     date_scraped: str
+    published_at: datetime | None = None
+    """When the publisher posted it, if the feed said; feeds are ordered by this."""
     created_at: datetime = Field(default_factory=utc_now)
 
     @override

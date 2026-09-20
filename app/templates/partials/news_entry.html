@@ -5,7 +5,8 @@
 		class="px-3 sm:px-6 py-3 sm:py-4 bg-gradient-to-r from-bajan-blue/5 to-bajan-yellow/5 border-b border-gray-100">
 		<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2">
 			<span class="md:text-base text-2xl font-medium text-bajan-blue">{{ entry.source }}</span>
-			<time class="md:text-base text-xl text-gray-500">{{ entry.date_scraped }}</time>
+			{# The publisher's own date when the feed gave one; otherwise the day we found it. #}
+			<time class="md:text-base text-xl text-gray-500">{{ entry.published_at.strftime("%Y-%m-%d") if entry.published_at else entry.date_scraped }}</time>
 		</div>
 	</div>
 
@@ -18,12 +19,15 @@
 	</div>
 
 	<!-- Article Content -->
+	{# Aggregator feeds carry no snippet; a compact card reads better than an empty block. #}
+	{% if entry.content %}
 	<div class="px-3 sm:px-6 py-4">
 		<div
 			class="prose prose-lg md:text-lg sm:text-3xl text-gray-800 sm:text-gray-600 w-full max-w-none prose-headings:font-bold prose-a:text-bajan-blue prose-p:text-base sm:prose-p:text-sm md:prose-p:text-base">
 			{{ entry.content }}
 		</div>
 	</div>
+	{% endif %}
 
 	<!-- Card Footer with CTA -->
 	<div class="px-3 sm:px-6 py-4 bg-gradient-to-r from-bajan-yellow/5 to-bajan-blue/5 border-t border-gray-100">

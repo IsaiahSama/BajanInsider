@@ -11,7 +11,22 @@ from pymongo import DESCENDING
 
 from app.db.mongo_client import SEARCH_MAX_LENGTH, MongoClient
 
-EXPECTED_SORT = [("created_at", DESCENDING), ("date_scraped", DESCENDING)]
+# Newest first by the publisher's own timestamp, falling back to when we stored
+# the entry, and for the oldest rows (no created_at) to the scrape date.
+EXPECTED_SORT = {"_sort_date": DESCENDING, "created_at": DESCENDING}
+EXPECTED_SORT_DATE = {
+    "$ifNull": [
+        "$published_at",
+        "$created_at",
+        {
+            "$dateFromString": {
+                "dateString": "$date_scraped",
+                "onError": None,
+                "onNull": None,
+            }
+        },
+    ]
+}
 
 
 def make_doc(index: int = 0) -> dict[str, Any]:
@@ -27,11 +42,28 @@ def make_doc(index: int = 0) -> dict[str, Any]:
 
 def make_cursor(docs: list[dict[str, Any]]) -> MagicMock:
     cursor = MagicMock()
-    cursor.sort.return_value = cursor
-    cursor.skip.return_value = cursor
-    cursor.limit.return_value = cursor
     cursor.to_list = AsyncMock(return_value=docs)
     return cursor
+
+
+def pipeline_of(news_db: MagicMock) -> list[dict[str, Any]]:
+    news_db.aggregate.assert_called_once()
+    return news_db.aggregate.call_args.args[0]
+
+
+def stage(pipeline: list[dict[str, Any]], name: str) -> Any:
+    matches = [s[name] for s in pipeline if name in s]
+    assert len(matches) == 1, f"expected exactly one {name} stage, got {matches}"
+    return matches[0]
+
+
+def assert_newest_first(pipeline: list[dict[str, Any]]) -> None:
+    assert stage(pipeline, "$addFields") == {"_sort_date": EXPECTED_SORT_DATE}
+    assert stage(pipeline, "$sort") == EXPECTED_SORT
+    assert pipeline.index(
+        next(s for s in pipeline if "$addFields" in s)
+    ) < pipeline.index(next(s for s in pipeline if "$sort" in s))
+    assert stage(pipeline, "$unset") == "_sort_date"
 
 
 @pytest.fixture
@@ -59,15 +91,12 @@ def regex_clauses(query: dict[str, Any]) -> list[dict[str, Any]]:
 @pytest.mark.asyncio
 async def test_find_entry_escapes_regex_metacharacters(
     db: MongoClient, news_db: MagicMock
-) -> None:
-    news_db.find.return_value = make_cursor([])
+):
+    news_db.aggregate.return_value = make_cursor([])
 
     await db.find_entry("(a+)+$")
 
-    query = news_db.find.call_args.args[0]
-    clauses = regex_clauses(query)
-    assert len(clauses) == 2
-    for clause in clauses:
+    for clause in regex_clauses(stage(pipeline_of(news_db), "$match")):
         assert clause["$regex"] == re.escape("(a+)+$")
         assert clause["$options"] == "i"
 
@@ -75,79 +104,76 @@ async def test_find_entry_escapes_regex_metacharacters(
 @pytest.mark.asyncio
 async def test_find_entry_searches_title_and_content(
     db: MongoClient, news_db: MagicMock
-) -> None:
-    news_db.find.return_value = make_cursor([])
+):
+    news_db.aggregate.return_value = make_cursor([])
 
     await db.find_entry("bridgetown")
 
-    query = news_db.find.call_args.args[0]
-    fields = sorted(field for clause in query["$or"] for field in clause)
-    assert fields == ["content", "title"]
+    query = stage(pipeline_of(news_db), "$match")
+    assert sorted(field for clause in query["$or"] for field in clause) == [
+        "content",
+        "title",
+    ]
 
 
 @pytest.mark.asyncio
-async def test_find_entry_caps_search_length(
-    db: MongoClient, news_db: MagicMock
-) -> None:
-    news_db.find.return_value = make_cursor([])
+async def test_find_entry_caps_search_length(db: MongoClient, news_db: MagicMock):
+    news_db.aggregate.return_value = make_cursor([])
 
-    await db.find_entry("a" * (SEARCH_MAX_LENGTH + 50))
+    await db.find_entry("x" * (SEARCH_MAX_LENGTH + 50))
 
-    query = news_db.find.call_args.args[0]
-    for clause in regex_clauses(query):
-        assert clause["$regex"] == re.escape("a" * SEARCH_MAX_LENGTH)
+    for clause in regex_clauses(stage(pipeline_of(news_db), "$match")):
+        assert clause["$regex"] == "x" * SEARCH_MAX_LENGTH
 
 
 @pytest.mark.asyncio
-async def test_find_entry_sorts_by_both_keys(
+async def test_find_entry_orders_newest_first_with_date_fallback(
     db: MongoClient, news_db: MagicMock
-) -> None:
-    cursor = make_cursor([make_doc(1), make_doc(2)])
-    news_db.find.return_value = cursor
+):
+    news_db.aggregate.return_value = make_cursor([make_doc(0)])
 
-    result = await db.find_entry("title")
+    await db.find_entry("anything")
 
-    cursor.sort.assert_called_once_with(EXPECTED_SORT)
-    assert result is not None
-    assert [entry.title for entry in result.entries] == ["Title 1", "Title 2"]
+    pipeline = pipeline_of(news_db)
+    assert_newest_first(pipeline)
+    assert stage(pipeline, "$limit") == 100
 
 
 @pytest.mark.asyncio
 async def test_find_entry_returns_none_when_nothing_matches(
     db: MongoClient, news_db: MagicMock
-) -> None:
-    news_db.find.return_value = make_cursor([])
+):
+    news_db.aggregate.return_value = make_cursor([])
 
     assert await db.find_entry("nothing") is None
 
 
 @pytest.mark.asyncio
-async def test_get_entries_sorts_by_both_keys_and_paginates(
+async def test_get_entries_orders_newest_first_and_paginates(
     db: MongoClient, news_db: MagicMock
-) -> None:
-    cursor = make_cursor([make_doc(1)])
-    news_db.find.return_value = cursor
+):
+    news_db.aggregate.return_value = make_cursor([make_doc(0)])
 
-    result = await db.get_entries(30, 30)
+    result = await db.get_entries(60, 30)
 
-    cursor.sort.assert_called_once_with(EXPECTED_SORT)
-    cursor.skip.assert_called_once_with(30)
-    cursor.limit.assert_called_once_with(30)
-    cursor.to_list.assert_awaited_once_with(30)
+    pipeline = pipeline_of(news_db)
+    assert_newest_first(pipeline)
+    assert stage(pipeline, "$skip") == 60
+    assert stage(pipeline, "$limit") == 30
+    assert pipeline.index(next(s for s in pipeline if "$sort" in s)) < pipeline.index(
+        next(s for s in pipeline if "$skip" in s)
+    )
     assert result is not None and len(result.entries) == 1
 
 
 @pytest.mark.asyncio
-async def test_get_all_entries_sorts_by_both_keys(
-    db: MongoClient, news_db: MagicMock
-) -> None:
-    cursor = make_cursor([make_doc(1)])
-    news_db.find.return_value = cursor
+async def test_get_all_entries_orders_newest_first(db: MongoClient, news_db: MagicMock):
+    news_db.aggregate.return_value = make_cursor([make_doc(0), make_doc(1)])
 
     result = await db.get_all_entries()
 
-    cursor.sort.assert_called_once_with(EXPECTED_SORT)
-    assert result is not None and len(result.entries) == 1
+    assert_newest_first(pipeline_of(news_db))
+    assert result is not None and len(result.entries) == 2
 
 
 @pytest.mark.asyncio
