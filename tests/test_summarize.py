@@ -196,3 +196,49 @@ def test_module_imports_without_gemini_api_key() -> None:
     )
 
     assert completed.returncode == 0, completed.stderr
+
+
+@pytest.mark.asyncio
+async def test_prompt_change_invalidates_cached_summary(
+    db: MagicMock, genai_client: MagicMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    await summarize.summarize_latest_news()
+    original_key = db.get_summary.call_args.args[0]
+
+    monkeypatch.setattr(summarize, "CONTEXT", "A different prompt")
+    await summarize.summarize_latest_news()
+
+    assert db.get_summary.call_args.args[0] != original_key
+
+
+def test_split_summary_groups_bullets_after_intro() -> None:
+    text = "Here's the latest.\n\n- First story.\n- Second story.\n"
+
+    assert summarize.split_summary(text) == [
+        "Here's the latest.",
+        ["First story.", "Second story."],
+    ]
+
+
+def test_split_summary_keeps_plain_paragraph() -> None:
+    # Summaries cached before the bullet prompt, and the status messages,
+    # have no bullets and must still render as plain text.
+    assert summarize.split_summary(LOADING) == [LOADING]
+
+
+def test_split_summary_accepts_other_markers_and_strips_bold() -> None:
+    text = "* **Budget:** Taxes are down.\n• Rain is coming."
+
+    assert summarize.split_summary(text) == [
+        ["Budget: Taxes are down.", "Rain is coming."]
+    ]
+
+
+def test_split_summary_keeps_closing_line_after_list() -> None:
+    text = "Intro.\n- One.\n- Two.\nThat's all, folks."
+
+    assert summarize.split_summary(text) == [
+        "Intro.",
+        ["One.", "Two."],
+        "That's all, folks.",
+    ]
