@@ -8,7 +8,21 @@ from app.services.logger import get_logger
 
 logger = get_logger(__name__)
 
-CONTEXT = "You are an amazing assistant that specializes in summarizing news articles. You are engaging, detailed, and capable of making mini stories with whatever information you have. When presenting, you use easy to understand language, occassional jokes, and always sound informed. However, you always, ALWAYS, only use the information you are given when giving your summaries. Ensure your summaries are no more than 10 sentences, and are easily digestible for older folks as well."
+CONTEXT = (
+    "You are an amazing assistant that specializes in summarizing news articles. "
+    "You are engaging, use easy to understand language and the occasional joke, "
+    "and always sound informed, so your summaries are easily digestible for older "
+    "folks as well. However, you always, ALWAYS, only use the information you are "
+    "given when giving your summaries.\n\n"
+    "Format every summary as one short opening sentence, followed by 3 to 6 bullet "
+    "points. Put each bullet point on its own line starting with \"- \", and keep "
+    "each one to one or two sentences about a single story or group of related "
+    "stories. Use plain text only: no headings, bold, or other markdown."
+)
+
+# Line prefixes split_summary treats as bullet points. Gemini is asked for "- "
+# but sometimes falls back to the other two.
+BULLET_MARKERS = ("- ", "* ", "• ")
 
 MODEL = "gemini-2.5-flash"
 
@@ -51,7 +65,9 @@ async def summarize_latest_news(limit: int = 10) -> str:
         return "No articles available to summarize."
 
     titles = " ".join(article.title for article in latest_articles.entries)
-    title_hash = sha256(titles.encode("utf-8")).hexdigest()
+    # The prompt is part of the key so that editing it regenerates the summary
+    # instead of serving one cached in the old format.
+    title_hash = sha256(f"{CONTEXT}\n{titles}".encode("utf-8")).hexdigest()
 
     cached_summary = await db_client.get_summary(title_hash)
     if cached_summary:
@@ -87,7 +103,7 @@ async def _generate_summary(title_hash: str, articles: list[NewsEntry]) -> str:
     articles_text = "\n\n".join(
         f"Title: {article.title}\n Content: {article.content}" for article in articles
     )
-    prompt = f"{CONTEXT}\n\nSummarize the following news articles in a few sentences:\n\n{articles_text}\n\nSummary:"
+    prompt = f"{CONTEXT}\n\nSummarize the following news articles:\n\n{articles_text}\n\nSummary:"
 
     try:
         # The async client keeps the event loop free while Gemini responds; the
@@ -103,3 +119,38 @@ async def _generate_summary(title_hash: str, articles: list[NewsEntry]) -> str:
         await db_client.add_summary(title_hash, response.text)
 
     return response.text or "No summary available at this time."
+
+
+def split_summary(text: str) -> list[str | list[str]]:
+    """Splits a summary into paragraphs and bullet lists for display.
+
+    Consecutive bullet lines become one list and every other non-blank line is
+    a paragraph. Text without bullets, such as summaries cached before the
+    bullet prompt or the status messages, comes back as plain paragraphs.
+
+    Args:
+        text (str): The summary or status message to display.
+
+    Returns:
+        list[str | list[str]]: Paragraphs and lists of bullet points, in order.
+    """
+
+    blocks: list[str | list[str]] = []
+
+    for raw_line in text.splitlines():
+        # Bold markers are dropped rather than rendered; the prompt forbids them.
+        line = raw_line.strip().replace("**", "")
+        if not line:
+            continue
+
+        if not line.startswith(BULLET_MARKERS):
+            blocks.append(line)
+            continue
+
+        point = line[2:].strip()
+        if blocks and isinstance(blocks[-1], list):
+            blocks[-1].append(point)
+        else:
+            blocks.append([point])
+
+    return blocks

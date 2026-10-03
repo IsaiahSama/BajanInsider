@@ -12,7 +12,7 @@ from app.db.mongo_client import client
 from app.models.news_collection import NewsCollection
 from app.services.logger import get_logger
 from app.services.misc import update_sitemap_lastmod
-from app.services.summarize import summarize_latest_news
+from app.services.summarize import split_summary, summarize_latest_news
 
 # Anchor filesystem paths on the package directory so the app starts from any
 # working directory (the repo root or app/), not only from inside app/.
@@ -94,7 +94,7 @@ async def get_summary_htmx(request: Request):
     return templates.TemplateResponse(
         request,
         "partials/summary.html",
-        context={"summary": summary},
+        context={"blocks": split_summary(summary)},
     )
 
 
