@@ -67,7 +67,7 @@ async def summarize_latest_news(limit: int = 10) -> str:
     titles = " ".join(article.title for article in latest_articles.entries)
     # The prompt is part of the key so that editing it regenerates the summary
     # instead of serving one cached in the old format.
-    title_hash = sha256(f"{CONTEXT}\n{titles}".encode("utf-8")).hexdigest()
+    title_hash = sha256(f"{CONTEXT}\n{titles}".encode()).hexdigest()
 
     cached_summary = await db_client.get_summary(title_hash)
     if cached_summary:
