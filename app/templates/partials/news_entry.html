@@ -4,7 +4,14 @@
 	<div
 		class="px-3 sm:px-6 py-3 sm:py-4 bg-gradient-to-r from-bajan-blue/5 to-bajan-yellow/5 border-b border-gray-100">
 		<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2">
-			<span class="md:text-base text-2xl font-medium text-bajan-blue">{{ entry.source }}</span>
+			<span class="flex items-center gap-2 md:text-base text-2xl font-medium text-bajan-blue">
+				{% if entry.favicon_url %}
+				{# Decorative: the source name beside it says the same thing. #}
+				<img src="{{ entry.favicon_url }}" alt="" width="20" height="20" loading="lazy"
+					referrerpolicy="no-referrer" class="w-6 h-6 md:w-5 md:h-5 rounded-sm shrink-0">
+				{% endif %}
+				<span>{{ entry.source }}</span>
+			</span>
 			{# The publisher's own date when the feed gave one; otherwise the day we found it. #}
 			<time class="md:text-base text-xl text-gray-500">{{ entry.published_at.strftime("%Y-%m-%d") if entry.published_at else entry.date_scraped }}</time>
 		</div>

@@ -315,6 +315,7 @@ class PageParser(ABC):
         base_url: str,
         source: str | None = None,
         published: str | None = None,
+        source_url: str | None = None,
     ) -> NewsEntry | None:
         """Validate and normalise one item's fields into a :class:`NewsEntry`.
 
@@ -326,6 +327,8 @@ class PageParser(ABC):
             source: The label to store as the entry's source; defaults to ``source_name``.
                 Aggregators pass the item's own publisher here.
             published: The feed's timestamp for the item (RFC 822 or ISO 8601), if any.
+            source_url: The publisher's site, for aggregators whose links are redirects.
+                Kept only when it is an absolute web address.
 
         Returns:
             The entry, or ``None`` when the title or link is missing or unusable.
@@ -350,6 +353,7 @@ class PageParser(ABC):
             link=clean_link,
             date_scraped=today(),
             published_at=_parse_published(published),
+            source_url=normalise_link(source_url, "") if source_url else None,
         )
 
     @classmethod
@@ -432,7 +436,17 @@ class RSSParser(PageParser):
             base_url=base_url,
             source=source,
             published=_child_text(item, "pubDate") or _child_text(item, "date"),
+            source_url=cls._rss_item_source_url(item),
         )
+
+    @classmethod
+    def _rss_item_source_url(cls, item: ET.Element) -> str | None:
+        """The publisher's site for an RSS ``<item>``, when its link is not on that site.
+
+        Hook for aggregator feeds. The default, right for an outlet's own feed, is ``None``:
+        the item's link already names the publisher.
+        """
+        return None
 
     @classmethod
     def _rss_item_title_and_source(cls, item: ET.Element) -> tuple[str, str]:
@@ -596,6 +610,13 @@ class GoogleNewsRSSParser(RSSParser):
         if separator and headline.strip() and suffix.strip():
             return headline.strip(), suffix.strip()
         return title, cls.source_name
+
+    @classmethod
+    @override
+    def _rss_item_source_url(cls, item: ET.Element) -> str | None:
+        source = _first_child(item, "source")
+        url = (source.get("url") or "").strip() if source is not None else ""
+        return url or None
 
     @classmethod
     @override
