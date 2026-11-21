@@ -309,7 +309,7 @@ async def test_run_stores_one_collection_per_source_url() -> None:
     assert add_news_entries.await_count == len(fixtures)
     for call in add_news_entries.await_args_list:
         assert len(call.args) == 1
-        assert not call.kwargs
+        assert set(call.kwargs) <= {"aggregator"}
         assert isinstance(call.args[0], NewsCollection)
         assert call.args[0].entries
     assert total == sum(
@@ -368,7 +368,7 @@ async def test_db_failure_for_one_source_is_isolated() -> None:
     async def fake_fetch(url: str, timeout: float | None = None) -> str:
         return fixtures[url]
 
-    async def flaky_add(collection: NewsCollection) -> None:
+    async def flaky_add(collection: NewsCollection, **_: object) -> None:
         if collection.entries[0].source == BBCBarbadosParser.source_name:
             raise RuntimeError("simulated database error")
 

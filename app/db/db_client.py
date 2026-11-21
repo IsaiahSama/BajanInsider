@@ -49,7 +49,9 @@ class DBClient(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def add_news_entries(self, news_collection: NewsCollection) -> int:
+    async def add_news_entries(
+        self, news_collection: NewsCollection, *, aggregator: bool = False
+    ) -> int:
         """Adds a collection of news entries to the database. To be used as a bulk operation.
 
         Entries that duplicate another entry in the batch, or one already stored,
@@ -57,6 +59,9 @@ class DBClient(ABC):
 
         Args:
             news_collection (NewsCollection): The collection of NewsEntry to be added.
+            aggregator (bool): The batch comes from an aggregator feed. Its entries
+                are then also skipped when their title alone, under any source,
+                is already stored or earlier in the batch.
 
         Returns:
             int: The number of entries actually inserted.

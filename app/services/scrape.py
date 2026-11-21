@@ -73,7 +73,9 @@ async def scrape_source(
         if collection is None:
             logger.warning("source=%s url=%s parsed=0", source, url)
             return 0
-        await client.add_news_entries(collection)
+        await client.add_news_entries(
+            collection, aggregator=parser in AGGREGATOR_PARSERS
+        )
     except Exception:
         logger.exception("source=%s url=%s failed", source, url)
         return 0

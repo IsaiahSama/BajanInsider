@@ -86,6 +86,13 @@ one name ("BBC" → "BBC News"); add a row there when a new spelling appears.
 Title alone is deliberately *not* the identity: different outlets' own articles
 under the same headline are different stories.
 
+Aggregator items are the exception. Google News re-surfaces one wire story under
+every outlet that ran it, each with its own redirect link and no snippet, so
+neither index catches the copies. Batches from `AGGREGATOR_PARSERS` are therefore
+stored with `add_news_entries(..., aggregator=True)`, which also drops an item
+when its title alone (case-insensitive) is already stored, or appears earlier in
+the batch, under any source.
+
 The outlets' own feeds (`PRIMARY_PARSERS`) are fetched and stored before any
 aggregator (`AGGREGATOR_PARSERS`), so the copy kept is the one with a snippet and
 the publisher's link. Barbados Today's feed is read four pages deep for the same

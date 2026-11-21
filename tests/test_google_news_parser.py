@@ -330,6 +330,10 @@ async def test_run_keeps_40_google_entries_and_the_default_from_everyone_else() 
     ]
     assert len(google) == 1
     assert len(google[0].entries) == 40
+    # Only the aggregator's batch is deduplicated by title alone.
+    for call in add_news_entries.await_args_list:
+        is_google = call.args[0].entries[0].link.startswith(GOOGLE_ARTICLE_PREFIX)
+        assert call.kwargs == {"aggregator": is_google}
     assert others
     assert all(len(c.entries) == scrape.ENTRIES_PER_URL for c in others)
     assert total == 40 + scrape.ENTRIES_PER_URL * len(others)

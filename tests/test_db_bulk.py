@@ -490,3 +490,118 @@ async def test_publish_date_is_backfilled_when_the_stored_copy_already_had_a_sni
     (filter_, update), _ = news_db.update_one.await_args_list[1]
     assert filter_["published_at"] is None
     assert update == {"$set": {"published_at": publisher_copy().published_at}}
+
+
+# Aggregator batches: one wire story re-surfaced under several outlets.
+
+WIRE_TITLE = "'It shows what it means': Mayo footballer skips Barbados holiday"
+
+
+def google_copy_from(source: str, n: int = 0, title: str = WIRE_TITLE) -> NewsEntry:
+    return NewsEntry(
+        title=title,
+        content="",
+        source=source,
+        link=f"https://news.google.com/rss/articles/{source.replace(' ', '')}{n}",
+        date_scraped="2026-11-20",
+    )
+
+
+def stored_titles(news_db: MagicMock, titles: list[str]) -> None:
+    """Makes `news_db.find(...).to_list()` return documents with these titles."""
+    cursor = MagicMock()
+    cursor.to_list = AsyncMock(return_value=[{"title": t} for t in titles])
+    news_db.find = MagicMock(return_value=cursor)
+
+
+def inserted_docs(news_db: MagicMock) -> list[dict]:
+    return news_db.insert_many.await_args.args[0]
+
+
+@pytest.mark.asyncio
+async def test_aggregator_batch_keeps_one_copy_of_a_title_across_sources():
+    client, news_db = make_client()
+    stored_titles(news_db, [])
+    irish_times = google_copy_from("The Irish Times")
+    breaking = google_copy_from("BreakingNews.ie")
+
+    await client.add_news_entries(
+        NewsCollection(entries=[irish_times, breaking]), aggregator=True
+    )
+
+    assert [d["source"] for d in inserted_docs(news_db)] == ["The Irish Times"]
+
+
+@pytest.mark.asyncio
+async def test_aggregator_title_match_ignores_case_and_spacing():
+    client, news_db = make_client()
+    stored_titles(news_db, [])
+    first = google_copy_from("The Irish Times")
+    shouted = google_copy_from("BreakingNews.ie", title=f"  {WIRE_TITLE.upper()} ")
+
+    await client.add_news_entries(
+        NewsCollection(entries=[first, shouted]), aggregator=True
+    )
+
+    assert len(inserted_docs(news_db)) == 1
+
+
+@pytest.mark.asyncio
+async def test_aggregator_entry_is_dropped_when_the_title_is_already_stored():
+    client, news_db = make_client()
+    stored_titles(news_db, [WIRE_TITLE.lower()])
+    fresh = google_copy_from("Barbados Today", title="Market vendors struggle")
+
+    await client.add_news_entries(
+        NewsCollection(entries=[google_copy_from("BreakingNews.ie"), fresh]),
+        aggregator=True,
+    )
+
+    (query, _), kwargs = news_db.find.call_args
+    assert query == {"title": {"$in": [WIRE_TITLE, "Market vendors struggle"]}}
+    assert kwargs.get("collation") is CASE_INSENSITIVE
+    assert [d["title"] for d in inserted_docs(news_db)] == ["Market vendors struggle"]
+
+
+@pytest.mark.asyncio
+async def test_aggregator_batch_of_only_stored_titles_inserts_nothing():
+    client, news_db = make_client()
+    stored_titles(news_db, [WIRE_TITLE])
+
+    inserted = await client.add_news_entries(
+        NewsCollection(entries=[google_copy_from("BreakingNews.ie")]), aggregator=True
+    )
+
+    assert inserted == 0
+    news_db.insert_many.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_title_dropped_aggregator_copy_still_backfills_a_publish_date():
+    client, news_db = make_client()
+    stored_titles(news_db, [WIRE_TITLE])
+    dated = google_copy_from("The Irish Times").model_copy(
+        update={"published_at": datetime(2026, 11, 20, 6, tzinfo=UTC)}
+    )
+
+    await client.add_news_entries(NewsCollection(entries=[dated]), aggregator=True)
+
+    news_db.update_one.assert_awaited_once()
+    (filter_, update), _ = news_db.update_one.await_args
+    assert filter_["published_at"] is None
+    assert update == {"$set": {"published_at": dated.published_at}}
+
+
+@pytest.mark.asyncio
+async def test_outlet_batches_still_keep_same_headline_from_different_sources():
+    """Title alone is not an outlet's identity: two papers' own articles may share it."""
+    client, news_db = make_client()
+    stored_titles(news_db, [WIRE_TITLE])
+    nation = make_entry(WIRE_TITLE, source="Nation News")
+    today = make_entry(WIRE_TITLE, source="Barbados Today")
+    today = today.model_copy(update={"link": "https://barbadostoday.bb/x"})
+
+    await client.add_news_entries(NewsCollection(entries=[nation, today]))
+
+    news_db.find.assert_not_called()
+    assert len(inserted_docs(news_db)) == 2

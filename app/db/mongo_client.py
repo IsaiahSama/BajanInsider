@@ -198,30 +198,52 @@ class MongoClient(DBClient):
         return await self.get_entry(new_entry.inserted_id)
 
     @override
-    async def add_news_entries(self, news_collection: NewsCollection) -> int:
+    async def add_news_entries(
+        self, news_collection: NewsCollection, *, aggregator: bool = False
+    ) -> int:
         # Dedupe within the batch first. The unique index would reject the second
         # copy anyway, but this keeps it out of the request and the logs.
         docs: list[dict[str, Any]] = []
         seen_links: set[str] = set()
         seen_pairs: set[tuple[str, str]] = set()
+        seen_titles: set[str] = set()
         for entry in news_collection.entries:
             link, pair = _identity_keys(entry)
             if link in seen_links or pair in seen_pairs:
                 continue
+            if aggregator and pair[0] in seen_titles:
+                continue
             seen_links.add(link)
             seen_pairs.add(pair)
+            seen_titles.add(pair[0])
             docs.append(entry.model_dump(by_alias=True, exclude={"id"}))
 
         in_batch_duplicates = len(news_collection.entries) - len(docs)
 
+        # An aggregator re-surfaces one wire story under every outlet that ran
+        # it, each with its own redirect link, so neither unique index catches
+        # the copies. Its items carry no snippet of their own, so a title that
+        # is already stored, from any source, adds nothing and is dropped.
+        title_duplicates: list[dict[str, Any]] = []
+        if aggregator and docs:
+            stored = await self._stored_titles([doc["title"] for doc in docs])
+            title_duplicates = [doc for doc in docs if _fold(doc["title"]) in stored]
+            docs = [doc for doc in docs if _fold(doc["title"]) not in stored]
+
         if not docs:
-            logger.info("No news entries to insert")
+            # Same-source copies among them can still backfill a publish date.
+            backfilled = await self._backfill_empty_copies(title_duplicates)
+            logger.info(
+                f"No news entries to insert "
+                f"(already_stored_titles={len(title_duplicates)} "
+                f"backfilled={backfilled})"
+            )
             return 0
 
         # ordered=False makes the server attempt every document and report the
         # rejected ones together, instead of stopping at the first duplicate.
-        skipped_existing = 0
-        backfilled = 0
+        skipped_existing = len(title_duplicates)
+        backfilled = await self._backfill_empty_copies(title_duplicates)
         try:
             result = await self.news_db.insert_many(docs, ordered=False)
             inserted = len(result.inserted_ids)
@@ -241,14 +263,14 @@ class MongoClient(DBClient):
                 )
                 raise
 
-            skipped_existing = len(write_errors)
+            skipped_existing += len(write_errors)
             inserted = int(details.get("nInserted", 0))
             rejected = [
                 docs[e["index"]]
                 for e in write_errors
                 if isinstance(e.get("index"), int)
             ]
-            backfilled = await self._backfill_empty_copies(rejected)
+            backfilled += await self._backfill_empty_copies(rejected)
 
         logger.info(
             f"Bulk insert into {self.news_table}: inserted={inserted} "
@@ -257,6 +279,13 @@ class MongoClient(DBClient):
             f"backfilled={backfilled}"
         )
         return inserted
+
+    async def _stored_titles(self, titles: list[str]) -> set[str]:
+        """Which of `titles` are already stored under any source, folded with `_fold`."""
+        cursor = self.news_db.find(
+            {"title": {"$in": titles}}, {"title": 1}, collation=CASE_INSENSITIVE
+        )
+        return {_fold(doc["title"]) for doc in await cursor.to_list(None)}
 
     async def _backfill_empty_copies(self, rejected: list[dict[str, Any]]) -> int:
         """Fills in what a stored copy is missing from a rejected duplicate.
