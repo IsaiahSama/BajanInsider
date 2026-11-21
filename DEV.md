@@ -4,9 +4,12 @@ Update: This project was originally done using React, Flask and SQLite. However,
 
 ## Technologies
 
-Frontend: Jinja, HTMX, Bulma CSS
-Server: FastAPI (Python)
-Database: MongoDB
+Frontend: Jinja2 templates, HTMX 2, Tailwind CSS v4 (built with `@tailwindcss/cli`)
+Server: FastAPI on Uvicorn (Python 3.12, managed with uv)
+Database: MongoDB, through the async Motor driver
+Feeds: aiohttp + BeautifulSoup4, with tenacity for retries
+AI summary: Google Gemini (`gemini-2.5-flash`) via the `google-genai` SDK
+Tooling: pytest, ruff, pyright; GitHub Actions CI
 
 ## Sources
 
@@ -126,13 +129,11 @@ uv export --no-dev --no-hashes --format requirements-txt -o requirements.txt
 
 ### Run the server
 
-Today `app.main` resolves `public/` and `templates/` relative to the current directory, so run it from inside `app/` with the repo root on the import path:
+`app.main` resolves `public/` and `templates/` from its own package directory, so the server runs from the repo root:
 
 ```sh
-cd app && PYTHONPATH=.. uv run uvicorn app.main:app --reload
+uv run uvicorn app.main:app --reload
 ```
-
-That working-directory requirement is being removed; once it is, `uv run uvicorn app.main:app --reload` from the repo root will work.
 
 ### Run the scraper
 
@@ -157,3 +158,35 @@ The stylesheet at `app/public/css/app.css` is built from `app/tailwindcss/`:
 ```sh
 cd app/tailwindcss && npm install && npm run dev
 ```
+
+`app.css` is committed, so rebuild it and commit the result whenever templates gain new Tailwind classes. A one-off minified build:
+
+```sh
+cd app/tailwindcss && npx @tailwindcss/cli -i ./styles/input.css -o ../public/css/app.css --minify
+```
+
+## Deploying to FastAPI Cloud
+
+The site is hosted on [FastAPI Cloud](https://fastapicloud.com/docs/) at `https://bajaninsider.fastapicloud.dev` (previously Render). `fastapi deploy` uploads the project, minus anything matched by `.gitignore` or `.fastapicloudignore`. The cloud then installs it from `pyproject.toml` + `uv.lock`, takes the Python version from `.python-version`, and serves the app named by `[tool.fastapi] entrypoint` in `pyproject.toml` (`app.main:app`). It never runs `npm`, which is fine because the built stylesheet is committed. It has no scheduler either, so the scraper runs on GitHub Actions (below).
+
+### One-time setup
+
+1. Create the app on the first deploy (below) and name it `bajaninsider`, so its URL matches the one hard-coded in `app/templates/base.html` (og tags), `app/public/robots.txt`, `app/public/sitemap.xml`, `README.md` and `tests/test_misc.py`. If the name is taken, or a custom domain is added, update those files.
+2. Set `MONGODB_URL` and `GEMINI_API_KEY` as **secrets** in the dashboard (App → Environment Variables) or with `fastapi cloud env set`. FastAPI Cloud does not document static outbound IPs, so MongoDB Atlas network access must allow `0.0.0.0/0`.
+3. In the GitHub repo settings, add `MONGODB_URL` as an Actions secret for the scrape workflow.
+
+### Deploy
+
+```sh
+uv run fastapi deploy
+```
+
+The first deploy opens a browser login and creates a `.fastapicloud/` directory that links the repo to the app. To deploy from CI instead, `fastapi setup-ci` generates a workflow that uses the `FASTAPI_CLOUD_TOKEN` and `FASTAPI_CLOUD_APP_ID` secrets.
+
+### The scraper
+
+`.github/workflows/scrape.yml` runs `python -m app.services.scrape` at 09:00 and 20:00 UTC (5am and 4pm AST). It only needs `MONGODB_URL`. To scrape on demand, open the workflow under the repo's Actions tab and click "Run workflow". GitHub can start scheduled runs a few minutes late, and it disables them after 60 days without repository activity.
+
+### Runtime filesystem
+
+On startup, `update_sitemap_lastmod()` rewrites `app/public/sitemap.xml`. FastAPI Cloud does not document whether the runtime filesystem is writable or persistent. The call is wrapped in try/except, so a failed write cannot block startup, but serving the sitemap from a route that stamps today's date would be sturdier. That rewrite is also why `sitemap.xml` keeps showing up as modified in `git status`.

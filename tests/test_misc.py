@@ -35,7 +35,7 @@ def test_update_sitemap_lastmod_sets_today_and_preserves_namespace(tmp_path: Pat
     # Other fields survive the rewrite.
     loc = root.find("sitemap:url/sitemap:loc", ns)
     changefreq = root.find("sitemap:url/sitemap:changefreq", ns)
-    assert loc is not None and loc.text == "https://bajaninsider.onrender.com/"
+    assert loc is not None and loc.text == "https://bajaninsider.fastapicloud.dev/"
     assert changefreq is not None and changefreq.text == "daily"
 
     # The default namespace is written back without an ns0: prefix.

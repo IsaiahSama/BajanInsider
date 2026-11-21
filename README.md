@@ -10,6 +10,6 @@ We also provide an AI summary of the latest news for easy perusal, because is it
 
 BajanInsider aims to provide summaries of news events, and will provide links to the original source if the reader finds an interesting story they want to read up more on.
 
-To use the website, visit [Bajan Insider](https://bajaninsider.onrender.com)
+To use the website, visit [Bajan Insider](https://bajaninsider.fastapicloud.dev)
 
 For more technical information, refer to the DEV.md file also located in this folder.

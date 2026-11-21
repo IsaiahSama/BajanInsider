@@ -1,0 +1,5 @@
+# Extends .gitignore for `fastapi deploy`: dev-only files the server never needs.
+.github/
+tests/
+app/tailwindcss/
+wireframe.png
