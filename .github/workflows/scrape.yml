@@ -1,11 +1,9 @@
 name: Scrape
 
-# FastAPI Cloud has no scheduler, so the twice-daily scrape runs here.
-# 09:17 and 20:17 UTC are 5:17am and 4:17pm AST (UTC-4, no daylight saving).
 # Not :00 — GitHub delays or drops scheduled runs under top-of-the-hour load.
 on:
   schedule:
-    - cron: "17 9,20 * * *"
+    - cron: "17 7,18 * * *"
   workflow_dispatch:
 
 concurrency:
